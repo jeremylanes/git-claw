@@ -25,13 +25,17 @@
 
 ## 📦 Installation
 
-### From Source (using Cargo)
-```bash
-# Clone the repository
-git clone https://github.com/luxa/git-claw.git
-cd git-claw
+### One-Line Install with Cargo ⚡
+Install `git-claw` directly in a single command:
 
-# Install the binary globally into ~/.cargo/bin
+```bash
+# Directly from the Git repository (one-liner):
+cargo install --git https://github.com/jeremylanes/git-claw.git
+
+# Or from crates.io (once published):
+cargo install git-claw
+
+# Or from the local source directory:
 cargo install --path .
 ```
 

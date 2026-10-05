@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 description = "Deterministic git worktree orchestration engine for developers and AI agents"
 license = "GPL-2.0-or-later"
+repository = "https://github.com/jeremylanes/git-claw"
+homepage = "https://github.com/jeremylanes/git-claw"
 
 [dependencies]
 clap = { version = "4.5", features = ["derive", "cargo"] }
