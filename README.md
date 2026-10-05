@@ -5,6 +5,7 @@
 [![Vibe-Coded with Antigravity](https://img.shields.io/badge/Vibe--Coded%20in-Antigravity%20(AGY)-blueviolet?style=for-the-badge)](https://github.com/google/antigravity)
 [![Powered by Gemini](https://img.shields.io/badge/Model-Google%20Gemini-4285F4?style=for-the-badge&logo=google)](https://deepmind.google/technologies/gemini/)
 [![Methodology BMad](https://img.shields.io/badge/Methodology-BMad%20Method-orange?style=for-the-badge)](https://github.com/bmad-code-org/BMAD-METHOD)
+[![License: GPL-2.0](https://img.shields.io/badge/License-GPL--2.0-blue?style=for-the-badge)](LICENSE)
 
 ---
 
@@ -88,5 +89,5 @@ shared_paths = [".venv", "node_modules", "target"]
 ---
 
 ## 📄 License
-
-MIT / Apache-2.0.
+ 
+GPL-2.0-only (GNU General Public License v2.0) — exactly the same license as the upstream [Git](https://github.com/git/git/blob/master/COPYING) project. See the full text in [LICENSE](LICENSE).
