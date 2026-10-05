@@ -1,0 +1,68 @@
+# tickets.toml — epic-scaffold-and-core-engine child stories
+# Managed by BMad Method. Order below is build order.
+
+[[entry]]
+id = 1
+type = "story"
+title = "Cargo scaffold, layered module structure & Clap CLI parser"
+description = "Sets up the Rust project git-claw, establishes core/, infra/, workflow/, and cli/ module architecture, and implements the Clap presentation parser supporting --help, --version, and both git-claw and git claw invocation styles."
+verify = "cargo run -- --help and cargo test succeed with zero errors and display usage and version."
+covers = ["FR-1"]
+after = []
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 2
+type = "story"
+title = "Zero-config parser & .git-claw.toml loader"
+description = "Implements core/config.rs parsing .git-claw.toml into strongly-typed ClawConfig with fallback defaults when the file is absent or partial."
+verify = "Unit tests verify parsing of full .git-claw.toml, fallback to defaults when absent, and descriptive error on malformed syntax."
+covers = ["FR-1"]
+after = [1]
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 3
+type = "story"
+title = "Deterministic slot allocation engine & port offset calculator"
+description = "Implements core/slot.rs and core/ports.rs computing the lowest available positive integer Slot ID (1..N) and calculating effective port offsets (Effective Port = Base Port + Slot ID) with boundary and overflow checks."
+verify = "Unit tests verify lowest-available slot allocation, recycling of freed slots, and deterministic port offset mapping."
+covers = ["FR-2"]
+after = [2]
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 4
+type = "story"
+title = "Git directory resolution & advisory file locking (slots.lock)"
+description = "Implements infra/git.rs resolving the common Git directory via git rev-parse --git-common-dir and infra/lock.rs with advisory file locking, non-blocking polling, and 5-second timeout."
+verify = "Integration test acquires lock, rejects concurrent acquire while held, and releases cleanly upon drop."
+covers = ["FR-2"]
+after = [3]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 5
+type = "story"
+title = "Atomic slot registry persistence & auto-GC of orphaned slots"
+description = "Implements infra/registry.rs persisting SlotRegistry to .git/claw/slots.json using atomic temporary file rename. Implements self-healing auto-GC that detects deleted worktree directories and releases their slots."
+verify = "Test creates registry file atomically, removes a dummy worktree folder, and verifies auto-GC purges the slot upon reload."
+covers = ["FR-2"]
+after = [4]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 6
+type = "story"
+title = "Multi-thread concurrency stress tests & multi-OS CI workflow"
+description = "Adds tests/concurrency_test.rs spinning up concurrent threads competing for slots under lock, and adds .github/workflows/ci.yml verifying build, tests, clippy, and rustfmt on Linux and macOS."
+verify = "cargo test --test concurrency_test passes without data races, and CI workflow file passes linter."
+covers = ["FR-2"]
+after = [5]
+hitl = false
+risk = "low"

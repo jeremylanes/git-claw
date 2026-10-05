@@ -1,0 +1,57 @@
+# tickets.toml — epic-inspection-and-tooling child stories
+# Managed by BMad Method. Order below is build order.
+
+[[entry]]
+id = 1
+type = "story"
+title = "Worktree list dashboard with terminal table formatting (git claw list)"
+description = "Implements workflow/list.rs and cli/format.rs displaying an ASCII/colored table of active worktrees (Slot ID, Branch, Directory, Assigned Ports, Head Commit) with automatic pre-flight GC of orphaned entries."
+verify = "Running git claw list outputs a cleanly formatted table with all active worktrees and their ports."
+covers = ["FR-6"]
+after = ["2.6"]
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 2
+type = "story"
+title = "Contextual command runner (git claw run [name] <cmd...>)"
+description = "Implements workflow/run.rs executing arbitrary commands inside the target worktree directory with .env.worktree variables loaded in the process environment. Infers current worktree if invoked from within one."
+verify = "Test runs git claw run my-feat env and confirms CLAW_SLOT_ID and computed ports are present in child output."
+covers = ["FR-7"]
+after = [1]
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 3
+type = "story"
+title = "Navigation and editor integration (git claw open and git claw cd)"
+description = "Implements git claw open [name] launching configured editor ($EDITOR or code/cursor) and git claw cd [name] printing target worktree path for shell integration."
+verify = "Command git claw cd my-feat outputs the absolute path to stdout with exit code 0."
+covers = ["FR-8"]
+after = [1]
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 4
+type = "story"
+title = "SemVer release tag manager (git claw tag <version>)"
+description = "Implements workflow/tag.rs validating strict SemVer format (e.g. v1.2.0), verifying clean working tree on main, and creating an annotated Git tag on the main branch."
+verify = "Test creates a valid SemVer tag on a clean main branch, and rejects invalid formats or dirty working trees."
+covers = ["FR-9"]
+after = [1]
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 5
+type = "story"
+title = "End-to-end integration test suite & binary packaging"
+description = "Adds comprehensive end-to-end integration tests covering the entire lifecycle from feature start to run, list, finish, and tag, verifying release binary build size under 15MB."
+verify = "cargo test --test cli_e2e_test executes and passes all integration flows."
+covers = ["FR-1", "FR-2", "FR-3", "FR-4", "FR-5", "FR-6", "FR-7", "FR-8", "FR-9"]
+after = [2, 3, 4]
+hitl = false
+risk = "medium"

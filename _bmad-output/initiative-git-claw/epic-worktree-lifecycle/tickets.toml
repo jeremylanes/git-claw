@@ -1,0 +1,79 @@
+# tickets.toml — epic-worktree-lifecycle child stories
+# Managed by BMad Method. Order below is build order.
+
+[[entry]]
+id = 1
+type = "story"
+title = "Git worktree runner & branch creation primitives"
+description = "Implements infra/worktree.rs invoking system git worktree add and branch creation for branch prefixes feature/, bugfix/, hotfix/, and spike/ with rollback on failure."
+verify = "Integration test creates a Git worktree via the runner in a temporary test repository and confirms the directory and branch exist."
+covers = ["FR-3"]
+after = ["1.5"]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 2
+type = "story"
+title = ".env.worktree generator & port environment injection"
+description = "Implements infra/env.rs generating .env.worktree inside the created worktree, populating CLAW_SLOT_ID, CLAW_WORKTREE_NAME, CLAW_WORKTREE_PATH, COMPOSE_PROJECT_NAME, and all computed PORT_<KEY> variables."
+verify = "Test verifies .env.worktree contents, variable syntax, and exact port offsets matching allocated slot."
+covers = ["FR-3"]
+after = [1]
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 3
+type = "story"
+title = "Shared cache linker (symlinks) & isolated mode flag"
+description = "Implements infra/cache.rs creating symlinks from worktree paths to main repository paths for directories in shared_paths when cache.strategy = 'shared', and honors --isolated flag."
+verify = "Test verifies created symlinks point to primary repo paths and ensures --isolated skips symlink creation."
+covers = ["FR-3"]
+after = [2]
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 4
+type = "story"
+title = "Lifecycle hooks runner (post_start, pre_finish, post_finish)"
+description = "Implements infra/hooks.rs executing configured shell commands with .env.worktree variables injected. Implements warning-and-retain policy on post_start failure, and abort-unless-force policy on pre_finish failure."
+verify = "Test confirms hook receives environment variables, non-zero pre_finish blocks completion, and post_start failure outputs warning without rolling back worktree."
+covers = ["FR-3", "FR-4"]
+after = [2]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 5
+type = "story"
+title = "Worktree start workflow (git claw <type> start <name>)"
+description = "Implements workflow/start.rs and CLI subcommands wiring slot acquisition, worktree creation, .env.worktree writing, cache symlinking, and post_start hook execution into an atomic end-to-end command."
+verify = "End-to-end test runs git claw feature start my-feat, checks Slot ID 1 assigned, .env.worktree created, and branch checked out."
+covers = ["FR-3"]
+after = [1, 2, 3, 4]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 6
+type = "story"
+title = "Worktree finish workflow (git claw finish [name])"
+description = "Implements workflow/finish.rs executing pre_finish hooks, merging worktree branch into main, executing post_finish hooks, removing the worktree and branch, and releasing the Slot ID."
+verify = "End-to-end test finishes an active worktree, merges commits to main, cleans up folder, and verifies Slot ID is freed in registry."
+covers = ["FR-4"]
+after = [5]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 7
+type = "story"
+title = "Spike abandonment workflow (git claw spike drop <name>)"
+description = "Implements workflow/spike.rs allowing deletion of a spike worktree without merging to main, bypassing finish hooks, and releasing the Slot ID."
+verify = "End-to-end test creates a spike, drops it, and confirms worktree and branch are purged with no commits on main."
+covers = ["FR-5"]
+after = [5]
+hitl = false
+risk = "low"
