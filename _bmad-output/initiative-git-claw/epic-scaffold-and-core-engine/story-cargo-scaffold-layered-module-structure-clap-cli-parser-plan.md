@@ -3,14 +3,15 @@ title: 'Cargo scaffold, layered module structure & Clap CLI parser'
 type: 'feature'
 ticket: 1
 created: '2026-10-05'
-status: 'draft'
+status: 'built'
+followup_review_recommended: false
 baseline_revision: '68eb24820f3950ffc28102d78be771c7168787e9'
 route: 'full'
 route_source: 'auto'
 risk: 'low'
-review: ''
-review_source: ''
-lenses_ran: []
+review: 'quick'
+review_source: 'pinned'
+lenses_ran: ['quick']
 review_loop_iteration: 0
 context:
   - '_bmad-output/initiative-git-claw/architecture-git-claw/architecture-git-claw.md'
@@ -66,15 +67,15 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `Cargo.toml` -- Create Cargo project manifest -- Configures `git-claw` package, Rust edition 2021, and required dependencies.
-- [ ] `src/core/mod.rs` -- Create core module placeholder -- Establishes pure domain layer root with no I/O dependencies.
-- [ ] `src/infra/mod.rs` -- Create infra module placeholder -- Establishes infrastructure layer root for external adapters.
-- [ ] `src/workflow/mod.rs` -- Create workflow module root and stub runners -- Exposes application dispatch functions.
-- [ ] `src/cli/output.rs` -- Create CLI output helpers -- Provides ANSI formatting and standard error output utilities.
-- [ ] `src/cli/args.rs` -- Implement Clap CLI arguments and Git subcommand stripping -- Defines command structure supporting direct and `git claw` invocations.
-- [ ] `src/cli/mod.rs` -- Re-export CLI types -- Organizes presentation layer public API.
-- [ ] `src/main.rs` -- Implement CLI main entrypoint -- Initializes argument parsing, delegates to workflow dispatch, handles exit codes.
-- [ ] `tests/test_cli.rs` -- Implement integration tests for CLI -- Verifies `--help`, `--version`, `git claw` invocation transparency, and error exit codes.
+- [x] `Cargo.toml` -- Create Cargo project manifest -- Configures `git-claw` package, Rust edition 2021, and required dependencies.
+- [x] `src/core/mod.rs` -- Create core module placeholder -- Establishes pure domain layer root with no I/O dependencies.
+- [x] `src/infra/mod.rs` -- Create infra module placeholder -- Establishes infrastructure layer root for external adapters.
+- [x] `src/workflow/mod.rs` -- Create workflow module root and stub runners -- Exposes application dispatch functions.
+- [x] `src/cli/output.rs` -- Create CLI output helpers -- Provides ANSI formatting and standard error output utilities.
+- [x] `src/cli/args.rs` -- Implement Clap CLI arguments and Git subcommand stripping -- Defines command structure supporting direct and `git claw` invocations.
+- [x] `src/cli/mod.rs` -- Re-export CLI types -- Organizes presentation layer public API.
+- [x] `src/main.rs` -- Implement CLI main entrypoint -- Initializes argument parsing, delegates to workflow dispatch, handles exit codes.
+- [x] `tests/test_cli.rs` -- Implement integration tests for CLI -- Verifies `--help`, `--version`, `git claw` invocation transparency, and error exit codes.
 
 **Acceptance Criteria:**
 - Given `git-claw` binary compiled, when invoked with `--help`, then it exits with code 0 and displays application description and available subcommands.
@@ -84,10 +85,18 @@ context:
 - Given the codebase, when running `cargo test`, then all tests pass with zero warnings.
 
 ## Implementation Notes
+- Implemented base Cargo package configuration for `git-claw` 0.1.0 with clap 4.5, thiserror 2.0, colored 2.2, serde, toml, and test dependencies.
+- Created layered architecture boundaries: `core/`, `infra/`, `workflow/`, and `cli/`.
+- Implemented `sanitize_args` to ensure transparent handling of redundant `claw` token in `git claw <args>` and direct `git-claw <args>`.
+- Verified all 6 matrix test scenarios in `tests/test_cli.rs`; all tests passing cleanly.
 
 ## Plan Change Log
 
 ## Review Triage Log
+
+### 2026-10-06 — Review pass
+- verdicts: 0 findings — high 0, medium 0, low 0, false 0, maybe-false 0
+- findings: []
 
 ## Design Notes
 
@@ -115,3 +124,37 @@ where
 - `cargo run -- --help` -- expected: prints CLI help text with exit code 0
 - `cargo run -- --version` -- expected: prints git-claw 0.1.0 with exit code 0
 - `cargo run -- claw --help` -- expected: prints CLI help text transparently with exit code 0
+
+## Auto Run Result
+
+### Summary of implemented change
+Implemented the initial Rust project scaffold for `git-claw`, structured with clean layered boundaries (`core/`, `infra/`, `workflow/`, `cli/`), and built the Clap presentation parser supporting `--help`, `--version`, all planned subcommands, and transparent execution via `git claw`.
+
+### Files changed
+- `Cargo.toml` - Project manifest with package metadata, edition 2021, and dependencies (`clap`, `thiserror`, `colored`, `serde`, `toml`, `fd-lock`, test fixtures).
+- `src/main.rs` - Application entrypoint routing CLI arguments and formatting errors to process exit codes.
+- `src/cli/mod.rs` - Presentation module root exporting CLI types.
+- `src/cli/args.rs` - Clap command hierarchies and `sanitize_args` for `git claw` compatibility.
+- `src/cli/output.rs` - ANSI color and stderr/stdout formatting helpers.
+- `src/core/mod.rs` - Pure domain layer module root.
+- `src/infra/mod.rs` - Infrastructure layer module root.
+- `src/workflow/mod.rs` - Application layer module root with stub dispatcher.
+- `tests/test_cli.rs` - Integration test suite covering CLI flags, subcommand routing, and transparent `claw` prefix stripping.
+
+### Review findings breakdown
+- Patches applied: 0
+- Items deferred: 0
+- Findings rejected: 0
+
+### Follow-up review recommendation
+- `false` (no patches required; clean first pass)
+
+### Verification performed
+- `cargo check`: Passed with 0 errors and 0 warnings.
+- `cargo test`: 6 passed, 0 failed, 0 warnings.
+- `cargo run -- --help`: Output correct usage with code 0.
+- `cargo run -- --version`: Output `git-claw 0.1.0` with code 0.
+- `cargo run -- claw --help`: Handled `claw` transparently with code 0.
+
+### Residual risks
+- None. Module boundaries are established and baseline tests pass.
