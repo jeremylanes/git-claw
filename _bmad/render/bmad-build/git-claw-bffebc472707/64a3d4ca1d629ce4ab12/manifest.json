@@ -1,0 +1,61 @@
+{
+  "generation_hash": "64a3d4ca1d629ce4ab12",
+  "inputs": {
+    "jinja2_version": "3.1.6",
+    "project_root": "/home/lane/Documents/luxa/opensource/git-claw",
+    "renderer_sha256": "a622fd5d9f633690323bdecf6cc9dc28625ef0d7b9d971fcc3cd101ed271fa19",
+    "resolved_values": {
+      "config.core.output_folder": "/home/lane/Documents/luxa/opensource/git-claw/_bmad-output",
+      "customization.workflow.activation_steps_append": [],
+      "customization.workflow.activation_steps_prepend": [],
+      "customization.workflow.implementation_handoff": "Launch a subagent with no prior conversation context, with this prompt:\n\n> Read {plan_file} fully and implement it — the plan is the sole source of truth. Load every file listed in its frontmatter `context:` before you start.\n>\n> When done, report what you changed, how you verified it, and anything left incomplete or risky.\n",
+      "customization.workflow.on_complete": "",
+      "customization.workflow.open_plan": "",
+      "customization.workflow.persistent_facts": [],
+      "customization.workflow.quick_lenses": [
+        {
+          "id": "quick",
+          "instruction": "Launch a context-free subagent with this prompt:\n\nRead `{plan_file}` — the plan holding the acceptance criteria and intent — and the files its frontmatter `context:` lists. Read the agent instruction files (`AGENTS.md`, `CLAUDE.md`, or equivalents) at the repository root and in the directories the diff touches; those are the rules. Then read the unified diff at `{diff_file}` — it is the change under review.\n\nReport unmet acceptance criteria, broken rules, and bugs. Each finding: the location, what goes wrong, and evidence checked against the surrounding code. Output a Markdown list of findings only — no severity, priority, or ranking.\n\nDo not invoke any skill, and do not spawn subagents of your own — you are the reviewer. Return your findings as text in your final message; do not route them through any findings-reporting tool the host may offer.\n\n",
+          "name": "Quick"
+        }
+      ],
+      "customization.workflow.review": "quick",
+      "customization.workflow.route": "auto",
+      "customization.workflow.route_selection": "Decide whether to use a coding subagent (full) or implement directly (oneshot).\nUsing the information already gathered, with no further reading and minimal\nextra reasoning, estimate the lines of code to add or modify.\n100 lines or fewer: oneshot. Otherwise: full.\nIf the change touches more than five files and is not simple or mechanical,\nconsider upgrading to full.\n"
+    },
+    "skill_root": "/home/lane/.agents/skills/bmad-build",
+    "source_sha256": {
+      "plan-template.md": "f27a97ac7e90b1d8c129e5836029dbef85263bce7d81399f3201970ef26b717c",
+      "references/claims-check.md": "6cb20a86d819b95272876bca0dffef59ca07ba6a373d804295066751043867c0",
+      "references/deletion-check.md": "0f1f124e4e957147e89164a272b10bedc694ad0d9ad2618c8610ac74ee9cb0da",
+      "review-prompts/edge-case-hunter.md": "b909fe0ec8e4daaf2550d0ec783618c5146261d0dbc0e054698ce00d0905a3d1",
+      "review-prompts/verification-gap.md": "45ab0b8c4c56c5c055c97a293a8591a67e256d0b1a2058ce1f093cd866be8d03",
+      "step-01-clarify-and-route.md": "e17028b910e13853f3e97a086dd03172baa4ea793ac264a407db9bb2c3dd101c",
+      "step-02-plan.md": "79df56a93fb25a5fd72b25c0fa9f85a39f9b14076a1b16321ce1d6778b6f2f99",
+      "step-03-implement.md": "df1a0f8a8fdb524581d371505a12a33a25d5150ecb442a58a9d8145d2b284954",
+      "step-04-review.md": "170bbabde8a2a1172db409e56d1efa5e9d4f03ae8e7ea12c96d680c448d1aca6",
+      "step-05-present.md": "8c3a4f5e627524b05c3f1db4850b6ab68ae6930d8046c340a3e1590dccc4ed61",
+      "step-oneshot.md": "430727834dd9c1c8355a3f5e163f3be1b70ea2ef47228fada5586b4a0627a863",
+      "workflow.md": "9383a7f98dbab150d9c66848dde2855f89d7544575affd1ddfef16e01aba9e5b"
+    }
+  },
+  "outputs": {
+    "plan-template.md": "f27a97ac7e90b1d8c129e5836029dbef85263bce7d81399f3201970ef26b717c",
+    "references/claims-check.md": "6cb20a86d819b95272876bca0dffef59ca07ba6a373d804295066751043867c0",
+    "references/deletion-check.md": "0f1f124e4e957147e89164a272b10bedc694ad0d9ad2618c8610ac74ee9cb0da",
+    "review-prompts/edge-case-hunter.md": "b909fe0ec8e4daaf2550d0ec783618c5146261d0dbc0e054698ce00d0905a3d1",
+    "review-prompts/verification-gap.md": "45ab0b8c4c56c5c055c97a293a8591a67e256d0b1a2058ce1f093cd866be8d03",
+    "step-01-clarify-and-route.md": "fc33f0c8f9ca2cca6446f0d9b9dcede6c67cfda3d18b36962ea593dccc4f4cbf",
+    "step-02-plan.md": "566c08f7c2c63c824bb02502a052d7a83b15707209a206d389fd05929f97a8de",
+    "step-03-implement.md": "656075575dc901b4f1f040a39849abe99ca03f167dbbcf64b91527480237966c",
+    "step-04-review.md": "53efcb9ae4d26d00ffc34ffdd57883115e50112897604c6be151fd4248057608",
+    "step-05-present.md": "edda56d0325a599734fef653501c2e56cd45ace615343113768b6a3f4f1b3540",
+    "step-oneshot.md": "f02b6ddc3ba4390493d3badd1f160fa157c80e598f7b074628161f3ad84d6725",
+    "workflow.md": "af9552aaf5d39fefb402115901e87651b158d9cfd4808ba1c547dd89bf817cb8"
+  },
+  "project_root": "/home/lane/Documents/luxa/opensource/git-claw",
+  "project_slug": "git-claw",
+  "root_hash": "bffebc472707",
+  "schema_version": 1,
+  "skill": "bmad-build"
+}
