@@ -54,11 +54,12 @@ flowchart TD
     end
 
     subgraph Infrastructure["4. Infrastructure Layer (infra)"]
-        GitCmd[Git CLI Runner]
-        FileLock[Advisory File Lock]
-        RegistryIO[Atomic Registry IO]
+        GitCmd[Git CLI Runner & Subprocesses]
+        FileLock[Advisory File Lock & Polling]
+        RegistryIO[Atomic Registry IO & Path Resolver]
         EnvWriter[Worktree Env Writer]
         FsLinker[Symlink Cache Linker]
+        HookRunner[Lifecycle Hook Runner]
     end
 
     CLI --> Application
@@ -71,7 +72,7 @@ flowchart TD
 ### Boundary & Dependency Invariants
 - `core/` contains pure domain logic with **zero side-effects and zero I/O**. It must not import `infra/`, `workflow/`, or `cli/`.
 - `workflow/` orchestrates business pipelines by composing `core/` rules and `infra/` side-effects.
-- `infra/` encapsulates external OS interactions (Git subprocesses, advisory locking, JSON parsing, environment files).
+- `infra/` encapsulates external OS interactions (Git subprocesses, advisory locking, JSON parsing, environment files, hook execution).
 - `cli/` handles argument parsing and terminal rendering, mapping typed errors into standard UNIX exit codes.
 
 ---
@@ -102,15 +103,15 @@ flowchart LR
 
 ### AD-3 — Concurrency & Atomic Registry Mutation [ADOPTED]
 
-- **Binds:** `infra/registry.rs`, `infra/lock.rs`
-- **Prevents:** Race conditions and corrupted JSON when multiple agents or human shells execute commands simultaneously.
-- **Rule:** Every read-modify-write operation on `.git/claw/slots.json` must acquire an exclusive advisory file lock on `.git/claw/slots.lock` with a 5-second timeout. Modifications must be written to a temporary file in `.git/claw/` and committed via atomic rename (`std::fs::rename`) before releasing the lock.
+- **Binds:** `infra/registry.rs`, `infra/lock.rs`, `workflow/start.rs`
+- **Prevents:** Race conditions, duplicate slot allocation, and corrupted JSON when multiple agents or human shells execute commands simultaneously.
+- **Rule:** Every read-modify-write operation on `slots.json` must acquire an exclusive advisory file lock on `slots.lock` located in the Git common directory. The lock acquisition must use a non-blocking retry polling loop (`try_write` with 50ms intervals) bounded by a strict 5-second timeout. During worktree creation (`start`), the lock must be held continuously across both the Slot ID allocation in `slots.json` and the physical completion of `git worktree add` to prevent premature garbage collection.
 
-### AD-4 — Self-Healing Slot Registry on Inspection [ADOPTED]
+### AD-4 — Self-Healing Slot Registry & Git Metadata Pruning [ADOPTED]
 
-- **Binds:** `core/slot.rs`, `workflow/list.rs`, `workflow/start.rs`
-- **Prevents:** Stale slot exhaustion resulting from manual deletion of worktree directories (`rm -rf`).
-- **Rule:** Any workflow querying or allocating slots must verify that the recorded `worktree_path` exists on disk. Any entry pointing to a missing directory must be automatically purged from `.git/claw/slots.json` and its `Slot ID` released without raising user errors.
+- **Binds:** `core/slot.rs`, `workflow/list.rs`, `workflow/start.rs`, `infra/git.rs`
+- **Prevents:** Stale slot exhaustion or Git worktree metadata desynchronization resulting from manual directory deletion (`rm -rf`).
+- **Rule:** Any workflow inspecting or allocating slots must verify that recorded worktree paths exist on disk (ignoring records created within a 30-second creation grace period). Any stale record must be purged from `slots.json`, its Slot ID reclaimed, and `git worktree prune` executed immediately to release Git's internal worktree tracking.
 
 ### AD-5 — Deterministic Port Calculation & Environment Injection [ADOPTED]
 
@@ -120,7 +121,7 @@ flowchart LR
   - `CLAW_SLOT_ID=<id>`
   - `CLAW_WORKTREE_NAME=<name>`
   - `CLAW_WORKTREE_PATH=<path>`
-  - `COMPOSE_PROJECT_NAME=<repo>_<name>_<slot_id>`
+  - `COMPOSE_PROJECT_NAME=<repo>_<name>_<slot_id>` (sanitized to lowercase alphanumerics and underscores)
   - `PORT_<KEY>=<effective_port>` for each port declared in `[ports]`.
 
 ### AD-6 — Hook Execution Semantics & Fault Tolerance [ADOPTED]
@@ -135,17 +136,30 @@ flowchart LR
 ### AD-7 — Cache Sharing via POSIX Symlinks [ADOPTED]
 
 - **Binds:** `workflow/start.rs`, `infra/fs.rs`
-- **Prevents:** Massive disk consumption and build cache duplication across worktrees while avoiding elevated privileges.
+- **Prevents:** Disk space bloat and repeated dependency installations across worktrees without requiring elevated root privileges.
 - **Rule:** When `cache.strategy = "shared"`, `git-claw` creates POSIX relative symlinks from the worktree to the primary repository directories declared in `.git-claw.toml` (`cache.directories`). If `--isolated` is supplied, symlink creation is skipped.
 
-### AD-8 — Branch Lifecycle & Trunk Discipline [ADOPTED]
+### AD-8 — Branch Lifecycle, Teardown Order & Trunk Discipline [ADOPTED]
 
-- **Binds:** `workflow/start.rs`, `workflow/finish.rs`, `workflow/spike.rs`
-- **Prevents:** Orphaned branches, dirty trunk state, and accidental merging of exploratory spikes.
+- **Binds:** `workflow/start.rs`, `workflow/finish.rs`, `workflow/spike.rs`, `infra/git.rs`
+- **Prevents:** Worktree deletion errors on untracked files, Git crashes when deleting active branches, and corrupted merges into dirty trunks.
 - **Rule:**
-  - `start` creates branches prefixed with their type: `feature/<name>`, `bugfix/<name>`, `hotfix/<name>`, `spike/<name>`.
-  - `finish` merges the branch into the configured `main_branch`, deletes the local branch, and runs `git worktree remove`.
-  - `spike drop` directly deletes the worktree and branch without merging.
+  - `start` creates branches prefixed with their type: `<type>/<name>` (`feature`, `bugfix`, `hotfix`, `spike`). Leaf names `<name>` must be unique across all active slots.
+  - `finish` executes in strict sequential order:
+    1. Run `hooks.pre_finish` (if configured; abort on non-zero exit unless `--force`).
+    2. Verify the primary repository has a clean working tree before merging.
+    3. Merge the worktree branch into `main_branch`.
+    4. Remove the worktree directory via `git worktree remove --force` (preventing aborts due to generated `.env.worktree` or cache symlinks).
+    5. Delete the local branch via `git branch -d <branch>` (now safe as the worktree is detached).
+    6. Release the Slot ID in `slots.json`.
+    7. Run `hooks.post_finish` (if configured).
+  - `spike drop` removes the worktree via `git worktree remove --force`, deletes the local `spike/<name>` branch via `git branch -D`, and releases the Slot ID without merging.
+
+### AD-9 — Common Git Directory & Repository Root Resolution [ADOPTED]
+
+- **Binds:** `infra/registry.rs`, `infra/git.rs`, `core/config.rs`
+- **Prevents:** Path resolution crashes (`ENOTDIR`) and siloed registry state when commands are executed from within linked worktrees where `.git` is a file rather than a directory.
+- **Rule:** All registry storage (`slots.json`), advisory locks (`slots.lock`), and configuration lookups must resolve paths using `git rev-parse --git-common-dir` for repository-wide state, and `git rev-parse --show-toplevel` for the current working directory boundary.
 
 ---
 
@@ -154,11 +168,11 @@ flowchart LR
 | Concern | Convention |
 | --- | --- |
 | Binary & Commands | Binary named `git-claw`. Subcommands: `start`, `finish`, `spike drop`, `list`, `run`, `open`, `cd`, `tag`. |
-| Branch Naming | Pattern: `<type>/<kebab-case-name>`. Types allowed: `feature`, `bugfix`, `hotfix`, `spike`. |
+| Branch Naming | Pattern: `<type>/<kebab-case-name>`. Types allowed: `feature`, `bugfix`, `hotfix`, `spike`. Leaf `<kebab-case-name>` must be unique across all active slots. |
 | Workspace Paths | Default: `../<repo_name>-worktrees/<name>/`. Normalized using canonical absolute paths. |
-| Registry Schema | Stored at `.git/claw/slots.json`. Root object: `{"version": 1, "slots": [{"id": 1, "branch": "...", "path": "...", "allocated_at": "..."}]}`. |
+| Registry Schema | Stored at `<git-common-dir>/claw/slots.json`. Root object: `{"version": 1, "slots": [{"id": 1, "name": "auth", "branch_type": "feature", "branch": "feature/auth", "path": "...", "allocated_at": "..."}]}`. |
 | Port Environment Keys | Prefixed with `PORT_` and converted to uppercase snake_case (e.g., `web` -> `PORT_WEB`). |
-| Error Handling | Library errors use `thiserror`. Fatal application errors print concise message to stderr and return non-zero exit codes. |
+| Error Handling | Library and internal errors use `thiserror`. Fatal application errors print concise message to stderr and return non-zero exit codes. |
 | Terminal Output | Informational status printed to stdout with ANSI colors. Warnings and errors printed to stderr. |
 
 ---
@@ -172,6 +186,7 @@ flowchart LR
 | serde | 1.0 |
 | serde_json | 1.0 |
 | toml | 0.8 |
+| thiserror | 2.0 |
 | fd-lock | 4.0 |
 | colored | 2.2 |
 | tempfile | 3.14 |
@@ -208,8 +223,9 @@ git-claw/
 │   └── infra/                   # Infrastructure layer: side effects & OS operations
 │       ├── mod.rs
 │       ├── git.rs               # std::process::Command wrappers for Git
-│       ├── registry.rs          # Atomic slots.json IO and auto-GC
-│       ├── lock.rs              # File locking on .git/claw/slots.lock
+│       ├── registry.rs          # Atomic slots.json IO and path resolution
+│       ├── lock.rs              # File locking on slots.lock with polling timeout
+│       ├── hook.rs              # Lifecycle hook execution
 │       ├── env_file.rs          # .env.worktree formatting and writing
 │       └── fs.rs                # Symlink creation and path utilities
 └── tests/                       # Integration tests (black-box CLI testing)
@@ -221,9 +237,9 @@ git-claw/
 ```
 
 ### Operational & Environment Envelope
-- **Deployment & Distribution**: Compiled as a single static or dynamic binary `git-claw`. Distributed via Cargo (`cargo install git-claw`), GitHub Releases (precompiled binaries for Linux x86_64/aarch64, macOS x86_64/arm64), and homebrew/AUR.
+- **Deployment & Distribution**: Compiled as a single static or dynamic binary `git-claw`. Distributed via Cargo (`cargo install git-claw`), GitHub Releases (precompiled binaries for Linux x86_64/aarch64, macOS x86_64/arm64), and package managers (homebrew/AUR).
 - **Runtime Dependencies**: Zero external daemons. Requires only Git >= 2.20 available on the system `$PATH`.
-- **Filesystem Permissions**: Operates strictly within user-level permissions. Reads and writes strictly to the local `.git/` directory and specified worktree directories.
+- **Filesystem Permissions**: Operates strictly within user-level permissions. Reads and writes strictly to the Git common directory (`<git-common-dir>/claw/`) and specified worktree directories.
 
 ---
 
@@ -232,14 +248,14 @@ git-claw/
 | Capability / Area | Lives in | Governed by |
 | --- | --- | --- |
 | FR-1: Configuration Parsing | `core/config.rs`, `infra/fs.rs` | AD-2 |
-| FR-2: Slot Registry & Self-Healing | `core/slot.rs`, `infra/registry.rs`, `infra/lock.rs` | AD-3, AD-4 |
-| FR-3: Worktree Creation & Ports | `workflow/start.rs`, `core/port.rs`, `infra/env_file.rs` | AD-1, AD-5, AD-7, AD-8 |
-| FR-4: Worktree Completion & Merge | `workflow/finish.rs`, `infra/git.rs`, `infra/hook.rs` | AD-1, AD-6, AD-8 |
-| FR-5: Spike Abandonment | `workflow/spike.rs`, `infra/git.rs` | AD-8 |
-| FR-6: Status Dashboard & Auto-GC | `workflow/list.rs`, `cli/output.rs`, `infra/registry.rs` | AD-4 |
-| FR-7: Contextual Execution (`run`) | `workflow/run.rs`, `infra/env_file.rs` | AD-5 |
-| FR-8: Editor & Shell Helpers (`open`, `cd`) | `cli/args.rs`, `workflow/mod.rs` | AD-1 |
-| FR-9: Release Tagging | `workflow/tag.rs`, `infra/git.rs` | AD-1 |
+| FR-2: Slot Registry & Self-Healing | `core/slot.rs`, `infra/registry.rs`, `infra/lock.rs` | AD-3, AD-4, AD-9 |
+| FR-3: Worktree Creation & Ports | `workflow/start.rs`, `core/port.rs`, `infra/env_file.rs` | AD-1, AD-3, AD-5, AD-7, AD-8, AD-9 |
+| FR-4: Worktree Completion & Merge | `workflow/finish.rs`, `infra/git.rs`, `infra/hook.rs` | AD-1, AD-6, AD-8, AD-9 |
+| FR-5: Spike Abandonment | `workflow/spike.rs`, `infra/git.rs` | AD-8, AD-9 |
+| FR-6: Status Dashboard & Auto-GC | `workflow/list.rs`, `cli/output.rs`, `infra/registry.rs` | AD-4, AD-9 |
+| FR-7: Contextual Execution (`run`) | `workflow/run.rs`, `infra/env_file.rs` | AD-5, AD-9 |
+| FR-8: Editor & Shell Helpers (`open`, `cd`) | `cli/args.rs`, `workflow/mod.rs` | AD-1, AD-9 |
+| FR-9: Release Tagging | `workflow/tag.rs`, `infra/git.rs` | AD-1, AD-9 |
 
 ---
 
