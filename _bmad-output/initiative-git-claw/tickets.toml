@@ -1,0 +1,22 @@
+# tickets.toml — initiative-git-claw epics in build order.
+# tickets.py reads it.
+
+[[epic]]
+id = 1
+slug = "epic-scaffold-and-core-engine"
+title = "Project Scaffold, Configuration & Core Slot Allocation Engine"
+covers = ["FR-1", "FR-2"]
+
+[[epic]]
+id = 2
+slug = "epic-worktree-lifecycle"
+title = "Worktree Lifecycle Orchestration & Workspace Isolation"
+covers = ["FR-3", "FR-4", "FR-5"]
+after = [{ epic = 1, needs = "Config model, SlotRegistry, advisory file lock, port arithmetic, and Git runner" }]
+
+[[epic]]
+id = 3
+slug = "epic-inspection-and-tooling"
+title = "Dashboard, Contextual Execution & Release Management"
+covers = ["FR-6", "FR-7", "FR-8", "FR-9"]
+after = [{ epic = 2, needs = "Worktree lifecycle workflows, .env.worktree injection, and worktree state resolution" }]
