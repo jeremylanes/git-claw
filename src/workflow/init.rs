@@ -168,7 +168,79 @@ fn scan_compose_details(
         }
     }
 
+    docker.network = scan_compose_network(&content);
+
     docker
+}
+
+/// Scans Compose file for defined network name.
+fn scan_compose_network(content: &str) -> Option<String> {
+    let mut in_networks = false;
+    let mut networks_indent = 0;
+    let mut current_net: Option<String> = None;
+    let mut net_indent_level: Option<usize> = None;
+
+    for line in content.lines() {
+        let trimmed_end = line.trim_end();
+        if trimmed_end.is_empty() || trimmed_end.trim_start().starts_with('#') {
+            continue;
+        }
+        let indent = line.len() - line.trim_start().len();
+        let trimmed = trimmed_end.trim();
+
+        if !in_networks {
+            if trimmed == "networks:" || trimmed.starts_with("networks:") {
+                in_networks = true;
+                networks_indent = indent;
+            }
+            continue;
+        }
+
+        if indent <= networks_indent && !trimmed.is_empty() {
+            break;
+        }
+
+        if let Some(expected_level) = net_indent_level {
+            if indent == expected_level && trimmed.ends_with(':') {
+                if let Some(net) = current_net {
+                    if net != "default" {
+                        return Some(net);
+                    }
+                }
+                let name = trimmed
+                    .trim_end_matches(':')
+                    .trim()
+                    .trim_matches(|c| c == '\'' || c == '"');
+                current_net = Some(name.to_string());
+                continue;
+            } else if indent > expected_level {
+                if let Some(stripped) = trimmed.strip_prefix("name:") {
+                    let val = stripped.trim().trim_matches(|c| c == '\'' || c == '"');
+                    if !val.is_empty() {
+                        return Some(val.to_string());
+                    }
+                }
+                continue;
+            }
+        }
+
+        if indent > networks_indent && trimmed.ends_with(':') {
+            net_indent_level = Some(indent);
+            let name = trimmed
+                .trim_end_matches(':')
+                .trim()
+                .trim_matches(|c| c == '\'' || c == '"');
+            current_net = Some(name.to_string());
+        }
+    }
+
+    if let Some(net) = current_net {
+        if net != "default" {
+            return Some(net);
+        }
+    }
+
+    None
 }
 
 /// Generates tailored `.git-claw.toml` content.

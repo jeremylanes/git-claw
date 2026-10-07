@@ -3,14 +3,31 @@
 use crate::core::error::PortError;
 use std::collections::BTreeMap;
 
-/// Converts a port key name to an uppercase environment variable name prefixed with `PORT_`.
-/// e.g. "web" -> "PORT_WEB", "api-gateway" -> "PORT_API_GATEWAY".
+/// Converts a port key name to an uppercase environment variable name.
+///
+/// Keys already ending with `_PORT`, starting with `PORT_`, or equal to `PORT`
+/// are preserved as-is. Otherwise, `PORT_` is prepended.
+///
+/// # Example
+///
+/// ```
+/// use git_claw::core::port::format_port_env_key;
+///
+/// assert_eq!(format_port_env_key("APP_PORT"), "APP_PORT");
+/// assert_eq!(format_port_env_key("web"), "PORT_WEB");
+/// assert_eq!(format_port_env_key("PORT"), "PORT");
+/// ```
 pub fn format_port_env_key(key: &str) -> String {
     let sanitized: String = key
         .chars()
         .map(|c| if c.is_alphanumeric() { c } else { '_' })
         .collect();
-    format!("PORT_{}", sanitized.to_uppercase())
+    let upper = sanitized.to_uppercase();
+    if upper == "PORT" || upper.starts_with("PORT_") || upper.ends_with("_PORT") {
+        upper
+    } else {
+        format!("PORT_{}", upper)
+    }
 }
 
 /// Calculates effective ports: `Effective Port = Base Port + Slot ID`.
@@ -49,6 +66,9 @@ mod tests {
     #[test]
     fn test_format_port_env_key() {
         assert_eq!(format_port_env_key("web"), "PORT_WEB");
+        assert_eq!(format_port_env_key("APP_PORT"), "APP_PORT");
+        assert_eq!(format_port_env_key("PORT"), "PORT");
+        assert_eq!(format_port_env_key("port_http"), "PORT_HTTP");
         assert_eq!(format_port_env_key("frontend-app"), "PORT_FRONTEND_APP");
         assert_eq!(format_port_env_key("db_primary"), "PORT_DB_PRIMARY");
     }

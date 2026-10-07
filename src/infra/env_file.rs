@@ -58,8 +58,9 @@ pub fn update_env_content_with_ports(
     let mut effective_map = BTreeMap::new();
     for (k, v) in raw_ports {
         let eff = v.saturating_add(slot_id as u16);
+        let formatted = crate::core::port::format_port_env_key(k);
         effective_map.insert(k.to_ascii_uppercase(), (k.clone(), eff));
-        effective_map.insert(format!("PORT_{}", k.to_ascii_uppercase()), (k.clone(), eff));
+        effective_map.insert(formatted, (k.clone(), eff));
     }
 
     for line in content.lines() {
@@ -88,7 +89,8 @@ pub fn update_env_content_with_ports(
     for (raw_key, base_port) in raw_ports {
         if !matched_ports.contains(raw_key) {
             let eff = base_port.saturating_add(slot_id as u16);
-            updated_lines.push(format!("{}={}", raw_key, eff));
+            let formatted_key = crate::core::port::format_port_env_key(raw_key);
+            updated_lines.push(format!("{}={}", formatted_key, eff));
         }
     }
 

@@ -68,12 +68,12 @@ fn test_generate_override_content_syntax() {
 
     let content = generate_override_content(&services, &config);
 
-    // Verifies container_name neutralization
-    assert!(content.contains("container_name: null"));
+    // Verifies container_name neutralization with !reset
+    assert!(content.contains("container_name: !reset"));
 
-    // Verifies shared service disabled & scale 0
+    // Verifies shared service disabled & scale 0 without breaking depends_on
     assert!(content.contains("postgres:"));
-    assert!(content.contains("claw-disabled"));
+    assert!(!content.contains("claw-disabled"));
     assert!(content.contains("scale: 0"));
     assert!(content.contains("restart: \"no\""));
     assert!(content.contains("entrypoint: [\"true\"]"));
@@ -135,13 +135,26 @@ services:
   web:
     image: tune-web:latest
     container_name: tune_web
+    depends_on:
+      - postgres
     ports:
       - "8000:8000"
   postgres:
     image: postgres:15
     container_name: tune_postgres
+networks:
+  default:
+    name: tune_shared_network
 "#;
     fs::write(repo_path.join("docker-compose.yml"), compose_content).expect("write compose");
+    let _ = std::process::Command::new("git")
+        .args(["add", "docker-compose.yml"])
+        .current_dir(repo_path)
+        .output();
+    let _ = std::process::Command::new("git")
+        .args(["commit", "-m", "Add compose file"])
+        .current_dir(repo_path)
+        .output();
 
     // 2. Configure .git-claw.toml with [docker]
     let claw_toml = format!(
@@ -169,16 +182,16 @@ shared_services = ["postgres"]
     assert_eq!(slot_id, 1);
 
     let wt_path = wt_parent.path().join("docker-interop");
-    let override_path = wt_path.join("docker-compose.claw.override.yml");
+    let override_path = wt_path.join("docker-compose.override.yml");
     assert!(override_path.exists(), "override file should exist");
 
     let override_content = fs::read_to_string(&override_path).expect("read override");
 
     // Check neutralization and service sharing
     assert!(override_content.contains("web:"));
-    assert!(override_content.contains("container_name: null"));
+    assert!(override_content.contains("container_name: !reset"));
     assert!(override_content.contains("postgres:"));
-    assert!(override_content.contains("claw-disabled"));
+    assert!(!override_content.contains("claw-disabled"));
     assert!(override_content.contains("scale: 0"));
 
     // Check network attachment
@@ -188,6 +201,20 @@ shared_services = ["postgres"]
     // Base compose file remains unchanged
     let original = fs::read_to_string(repo_path.join("docker-compose.yml")).expect("read original");
     assert_eq!(original, compose_content);
+
+    // Validate with docker compose config if docker command exists
+    let compose_cmd = std::process::Command::new("docker")
+        .args(["compose", "config"])
+        .current_dir(&wt_path)
+        .output();
+
+    if let Ok(output) = compose_cmd {
+        assert!(
+            output.status.success(),
+            "docker compose config failed: stderr:\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
 }
 
 #[test]
@@ -197,5 +224,5 @@ fn test_docker_disabled_when_empty() {
     let result =
         generate_docker_compose_override(dir.path(), dir.path(), &config).expect("generate");
     assert!(result.is_none());
-    assert!(!dir.path().join("docker-compose.claw.override.yml").exists());
+    assert!(!dir.path().join("docker-compose.override.yml").exists());
 }

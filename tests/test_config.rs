@@ -1,9 +1,15 @@
 use git_claw::core::config::{default_worktree_root, expand_home, CacheStrategy, Config};
 use std::path::Path;
+use std::sync::Mutex;
 use tempfile::NamedTempFile;
+
+static ENV_MUTEX: Mutex<()> = Mutex::new(());
 
 #[test]
 fn test_default_config_for_absent_file() {
+    let _guard = ENV_MUTEX.lock().unwrap();
+    std::env::remove_var("GIT_CLAW_GLOBAL_CONFIG");
+
     let non_existent = Path::new("/path/that/does/not/exist/.git-claw.toml");
     let config = Config::load_or_default(non_existent, "git-claw").expect("loads default config");
 
@@ -106,6 +112,7 @@ main_branch = "trunk"
 
 #[test]
 fn test_global_config_hierarchy_and_override() {
+    let _guard = ENV_MUTEX.lock().unwrap();
     let global_file = NamedTempFile::new().expect("creates global temp file");
     let global_content = r#"
 [project]

@@ -71,6 +71,10 @@ services:
   postgres:
     image: postgres:15
     container_name: my_app_postgres
+
+networks:
+  default:
+    name: tune_network
 "#;
     fs::write(repo_path.join("docker-compose.yml"), compose_content).expect("write compose");
 
@@ -95,6 +99,7 @@ services:
         config.docker.compose_file.as_deref(),
         Some("docker-compose.yml")
     );
+    assert_eq!(config.docker.network.as_deref(), Some("tune_network"));
     assert!(config
         .docker
         .shared_services

@@ -19,6 +19,9 @@ fn test_slot_allocation_gap_recycling() {
 #[test]
 fn test_format_port_env_keys() {
     assert_eq!(format_port_env_key("http"), "PORT_HTTP");
+    assert_eq!(format_port_env_key("web"), "PORT_WEB");
+    assert_eq!(format_port_env_key("APP_PORT"), "APP_PORT");
+    assert_eq!(format_port_env_key("PORT"), "PORT");
     assert_eq!(
         format_port_env_key("backend-service"),
         "PORT_BACKEND_SERVICE"
