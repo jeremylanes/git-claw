@@ -6,7 +6,9 @@ use crate::core::config::Config;
 use crate::core::port::calculate_effective_ports;
 use crate::core::slot::allocate_lowest_slot;
 use crate::infra::docker::generate_docker_compose_override;
-use crate::infra::env_file::{copy_and_merge_untracked_files, write_env_worktree};
+use crate::infra::env_file::{
+    copy_and_merge_untracked_files, sanitize_compose_project_name, write_env_worktree,
+};
 use crate::infra::fs::link_shared_cache_directories;
 use crate::infra::git::{resolve_git_common_dir, resolve_repo_name, resolve_toplevel};
 use crate::infra::hook::run_post_start_hook;
@@ -79,6 +81,8 @@ pub fn start_worktree(options: StartOptions<'_>) -> Result<u32, WorkflowError> {
         &effective_ports,
     )?;
 
+    let compose_project = sanitize_compose_project_name(&repo_name, options.name, slot_id);
+
     // Copy declared untracked files and update port variables in-place
     let _ = copy_and_merge_untracked_files(
         &toplevel,
@@ -86,6 +90,7 @@ pub fn start_worktree(options: StartOptions<'_>) -> Result<u32, WorkflowError> {
         &config.files.copy,
         &config.ports,
         slot_id,
+        Some(&compose_project),
     );
 
     // Generate docker-compose.claw.override.yml if configured

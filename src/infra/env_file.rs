@@ -51,9 +51,11 @@ pub fn update_env_content_with_ports(
     content: &str,
     raw_ports: &BTreeMap<String, u16>,
     slot_id: u32,
+    compose_project_name: Option<&str>,
 ) -> String {
     let mut updated_lines = Vec::new();
     let mut matched_ports = BTreeSet::new();
+    let mut matched_compose_project = false;
 
     let mut effective_map = BTreeMap::new();
     for (k, v) in raw_ports {
@@ -73,6 +75,14 @@ pub fn update_env_content_with_ports(
         if let Some((key, _val)) = line.split_once('=') {
             let key_trimmed = key.trim();
             let key_upper = key_trimmed.to_ascii_uppercase();
+
+            if key_upper == "COMPOSE_PROJECT_NAME" {
+                if let Some(proj) = compose_project_name {
+                    updated_lines.push(format!("COMPOSE_PROJECT_NAME={}", proj));
+                    matched_compose_project = true;
+                    continue;
+                }
+            }
 
             if let Some((orig_key, eff_port)) = effective_map.get(&key_upper) {
                 updated_lines.push(format!("{}={}", key.trim_end(), eff_port));
@@ -94,6 +104,13 @@ pub fn update_env_content_with_ports(
         }
     }
 
+    // Append COMPOSE_PROJECT_NAME if not already matched
+    if let Some(proj) = compose_project_name {
+        if !matched_compose_project {
+            updated_lines.push(format!("COMPOSE_PROJECT_NAME={}", proj));
+        }
+    }
+
     let mut result = updated_lines.join("\n");
     if !result.ends_with('\n') {
         result.push('\n');
@@ -102,13 +119,14 @@ pub fn update_env_content_with_ports(
 }
 
 /// Copies declared untracked files from `repo_root` to `worktree_path`, creating parent directories,
-/// and updating matched port variables in `.env` files in-place.
+/// and updating matched port variables and COMPOSE_PROJECT_NAME in `.env` files in-place.
 pub fn copy_and_merge_untracked_files(
     repo_root: &Path,
     worktree_path: &Path,
     files_to_copy: &[String],
     raw_ports: &BTreeMap<String, u16>,
     slot_id: u32,
+    compose_project_name: Option<&str>,
 ) -> std::io::Result<()> {
     for rel_path in files_to_copy {
         let src = repo_root.join(rel_path);
@@ -125,7 +143,7 @@ pub fn copy_and_merge_untracked_files(
         let is_env_file = rel_path.ends_with(".env") || rel_path.contains(".env");
         if is_env_file {
             let content = fs::read_to_string(&src)?;
-            let updated = update_env_content_with_ports(&content, raw_ports, slot_id);
+            let updated = update_env_content_with_ports(&content, raw_ports, slot_id, compose_project_name);
             fs::write(&dest, updated)?;
         } else {
             fs::copy(&src, &dest)?;
@@ -163,10 +181,11 @@ OTHER=abc
         ports.insert("APP_PORT".to_string(), 80);
         ports.insert("EXTRA_PORT".to_string(), 9000);
 
-        let updated = update_env_content_with_ports(original, &ports, 2);
+        let updated = update_env_content_with_ports(original, &ports, 2, Some("my_proj_1"));
         assert!(updated.contains("APP_PORT=82"));
         assert!(updated.contains("SECRET=xyz"));
         assert!(updated.contains("EXTRA_PORT=9002"));
+        assert!(updated.contains("COMPOSE_PROJECT_NAME=my_proj_1"));
         assert!(updated.contains("# Comments"));
     }
 }

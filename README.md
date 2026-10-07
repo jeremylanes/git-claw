@@ -283,6 +283,19 @@ strategy = "shared"
 shared_paths = ["node_modules", ".next"]
 ```
 
+### 🐳 Docker Compose Launcher Script Compatibility
+If your project uses a custom launcher script (like `bin/up` or a `Makefile`) that explicitly passes `-f docker-compose.yml`, Docker Compose bypasses automatic override file loading. Ensure your script checks for `docker-compose.override.yml`:
+
+```bash
+# In your bin/up or _common.sh script:
+COMPOSE_ARGS="-f $COMPOSE_FILE"
+if [ -f "docker-compose.override.yml" ]; then
+    COMPOSE_ARGS="$COMPOSE_ARGS -f docker-compose.override.yml"
+fi
+docker compose $COMPOSE_ARGS --env-file $ENV_FILE up
+```
+This ensures `git-claw`'s port offsets, `!reset` container name neutralization, and shared network configurations are always applied seamlessly.
+
 ### 🦀 Rust Stack
 ```toml
 [hooks]
