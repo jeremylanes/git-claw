@@ -1,0 +1,57 @@
+# tickets.toml — epic-dx-docker-and-init child stories
+# Managed by BMad Method. Order below is build order.
+
+[[entry]]
+id = 1
+type = "story"
+title = "Global configuration hierarchy & centralized worktrees path"
+description = "Updates config engine to read global ~/.git-claw/config.toml, changes default worktree location to ~/.git-claw/worktrees/<repo-name>/<worktree-name>, and allows per-project override in .git-claw.toml."
+verify = "Unit and integration tests verify default worktree path under ~/.git-claw/worktrees/, global config merging, and local override."
+covers = ["FR-1"]
+after = []
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 2
+type = "story"
+title = "Untracked files duplication & dynamic port variable in-place merging"
+description = "Implements [files] copy = [...] in .git-claw.toml. During worktree creation, copies declared files (e.g. .env) from main repository into worktree and updates or appends calculated effective ports in-place."
+verify = "Integration test confirms declared .env is copied to worktree and its port variables (e.g. APP_PORT=80) are updated to effective offset (e.g. APP_PORT=81)."
+covers = ["FR-11"]
+after = [1]
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 3
+type = "story"
+title = "Docker Compose override generator & shared service interop"
+description = "Implements [docker] table in .git-claw.toml. Generates docker-compose.claw.override.yml in worktrees to neutralize duplicate container names, connect to shared networks as external, and reuse declared shared services (such as postgres)."
+verify = "Test generates compose override file, verifies container_name neutralization, external network attachment, and service override syntax."
+covers = ["FR-12"]
+after = [2]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 4
+type = "story"
+title = "Project initialization command (git claw init)"
+description = "Implements git claw init (and git claw init --yes) which inspects the current repository, auto-detects .env locations, scans docker-compose.yml for ports and services, and generates a tailored .git-claw.toml."
+verify = "Integration test runs git claw init in a dummy repository with .env and docker-compose.yml and verifies valid generated .git-claw.toml."
+covers = ["FR-10"]
+after = [3]
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 5
+type = "story"
+title = "Shell integration (git claw shell-hook) for auto-cd navigation"
+description = "Implements git claw shell-hook emitting bash/zsh shell functions so that running claw feature start <name> automatically switches directory (cd) to the newly created worktree."
+verify = "Test runs git claw shell-hook, validates shell function output, syntax, and execution logic."
+covers = ["FR-8"]
+after = [4]
+hitl = false
+risk = "low"

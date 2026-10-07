@@ -77,10 +77,10 @@ Modern software engineering increasingly leverages concurrent workflows, whether
 ### 4.1 Configuration & Project Setup
 **Description:** `git-claw` reads `.git-claw.toml` at the project root to discover project configuration, base port offsets, optional lifecycle hooks, and cache sharing rules. If `.git-claw.toml` is omitted, defaults are applied gracefully.
 
-#### FR-1: Configuration Parsing
-The system reads `.git-claw.toml` and extracts `[project]`, `[ports]`, `[hooks]`, and `[cache]` tables.
+#### FR-1: Configuration Parsing & Two-Tier Defaults
+The system reads local `.git-claw.toml` and merges it with global `~/.git-claw/config.toml` (or fallback).
 **Consequences (testable):**
-- Missing `.git-claw.toml` uses default configuration (`main_branch = "main"`, default worktree directory `../<repo>-worktrees/`, empty ports, no hooks, `cache.strategy = "shared"`).
+- Missing `.git-claw.toml` uses global user settings from `~/.git-claw/config.toml`, falling back to deterministic system defaults (`main_branch = "main"`, default worktree directory `~/.git-claw/worktrees/<repo-name>/`, empty ports, no hooks, `cache.strategy = "shared"`).
 - Invalid TOML syntax triggers an explicit error message with line numbers and exits with code 1 without altering files.
 
 #### FR-2: Slot Registry Persistence & Self-Healing
@@ -137,13 +137,40 @@ Executes an arbitrary shell command within the working directory of the specifie
 - Command executes with exit code forwarded verbatim to caller.
 - Omitting `[name]` infers current worktree if invoked from inside one.
 
-#### FR-8: Editor & Shell Integration (`open` and `cd`)
-- `git claw open [name]`: Launches the configured editor (`$EDITOR` or `code`/`cursor`) targeting the worktree directory.
-- `git claw cd [name]`: Prints the worktree path (usable with shell aliases: `cd $(git claw cd <name>)`).
+#### FR-8: Navigation & Shell Integration (`shell-hook` and `cd`)
+- `git claw shell-hook`: Outputs shell wrapper functions for bash/zsh supporting seamless `cd` into newly spawned worktrees (e.g. `claw feature start <name>` automatically switches directory).
+- `git claw cd [name]`: Prints the absolute worktree path for direct navigation.
+- `git claw open [name]`: Launches the configured editor (`$EDITOR` or editor declared in config).
 
 ---
 
-### 4.4 Release Tagging
+### 4.5 Developer Experience, Environment & Container Interop
+**Description:** Provides guided project onboarding, untracked configuration duplication, and non-intrusive Docker Compose orchestration.
+
+#### FR-10: Project Initialization (`git claw init`)
+Scaffolds or updates `.git-claw.toml` by detecting existing project stack components.
+**Consequences (testable):**
+- Inspects repository for environment files (e.g. `.env`, `./src/**/.env`) and Docker compose files.
+- Detects exposed port variables and suggests them in generated `.git-claw.toml`.
+- Supports `--yes` flag to accept all inferred defaults non-interactively.
+
+#### FR-11: Untracked Files Duplication & Dynamic Variable Merging (`[files] copy`)
+Copies declared untracked files into newly created worktrees and merges effective port assignments.
+**Consequences (testable):**
+- When `[files] copy = [...]` is specified, files are physically copied from the primary repo into the worktree on creation.
+- Port variables defined in `[ports]` are updated in-place (or appended) in copied `.env` files with their calculated effective values (`Effective Port = Base Port + Slot ID`).
+
+#### FR-12: Docker Compose Override & Service Sharing (`[docker]`)
+Generates worktree-specific Docker Compose overrides to eliminate container name clashes and allow sharing existing infrastructure services (e.g. primary PostgreSQL database).
+**Consequences (testable):**
+- When configured, generates `docker-compose.claw.override.yml` in the worktree.
+- Neutralizes or indexes `container_name` for worktree-specific services.
+- Connects worktree services to the primary repository's Docker network as `external: true`.
+- Allows declaring `shared_services` (e.g. `shared_services = ["postgres"]`) so that the worktree avoids spawning duplicate database containers.
+
+---
+
+### 4.6 Release Tagging
 **Description:** Manages SemVer releases on the main trunk.
 
 #### FR-9: SemVer Tag Creation (`git claw tag <semver>`)

@@ -20,3 +20,10 @@ slug = "epic-inspection-and-tooling"
 title = "Dashboard, Contextual Execution & Release Management"
 covers = ["FR-6", "FR-7", "FR-8", "FR-9"]
 after = [{ epic = 2, needs = "Worktree lifecycle workflows, .env.worktree injection, and worktree state resolution" }]
+
+[[epic]]
+id = 4
+slug = "epic-dx-docker-and-init"
+title = "Developer Experience, Docker Interop & Project Initialization"
+covers = ["FR-10", "FR-11", "FR-12"]
+after = [{ epic = 3, needs = "Base CLI tooling and inspection workflows" }]
