@@ -130,6 +130,21 @@ fn main() {
                 process::exit(1);
             }
         }
+        Some(Commands::Init { yes }) => {
+            if let Err(e) = workflow::run_init_workflow(workflow::InitOptions {
+                yes,
+                repo_root: None,
+            }) {
+                cli::output::print_error(e);
+                process::exit(1);
+            }
+        }
+        Some(Commands::ShellHook { shell }) => {
+            if let Err(e) = workflow::run_shell_hook(workflow::ShellHookOptions { shell: &shell }) {
+                cli::output::print_error(e);
+                process::exit(1);
+            }
+        }
         None => {
             if let Err(e) = Cli::command().print_help() {
                 cli::output::print_error(e);

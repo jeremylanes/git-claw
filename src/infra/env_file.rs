@@ -1,6 +1,6 @@
 //! `.env.worktree` generation and environment variable injection.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
@@ -45,6 +45,94 @@ pub fn write_env_worktree(
     Ok(())
 }
 
+/// Updates port variables in-place within an environment file content string,
+/// and appends any missing port variables at the end.
+pub fn update_env_content_with_ports(
+    content: &str,
+    raw_ports: &BTreeMap<String, u16>,
+    slot_id: u32,
+) -> String {
+    let mut updated_lines = Vec::new();
+    let mut matched_ports = BTreeSet::new();
+
+    let mut effective_map = BTreeMap::new();
+    for (k, v) in raw_ports {
+        let eff = v.saturating_add(slot_id as u16);
+        effective_map.insert(k.to_ascii_uppercase(), (k.clone(), eff));
+        effective_map.insert(format!("PORT_{}", k.to_ascii_uppercase()), (k.clone(), eff));
+    }
+
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            updated_lines.push(line.to_string());
+            continue;
+        }
+
+        if let Some((key, _val)) = line.split_once('=') {
+            let key_trimmed = key.trim();
+            let key_upper = key_trimmed.to_ascii_uppercase();
+
+            if let Some((orig_key, eff_port)) = effective_map.get(&key_upper) {
+                updated_lines.push(format!("{}={}", key.trim_end(), eff_port));
+                matched_ports.insert(orig_key.clone());
+            } else {
+                updated_lines.push(line.to_string());
+            }
+        } else {
+            updated_lines.push(line.to_string());
+        }
+    }
+
+    // Append any unmatched declared ports
+    for (raw_key, base_port) in raw_ports {
+        if !matched_ports.contains(raw_key) {
+            let eff = base_port.saturating_add(slot_id as u16);
+            updated_lines.push(format!("{}={}", raw_key, eff));
+        }
+    }
+
+    let mut result = updated_lines.join("\n");
+    if !result.ends_with('\n') {
+        result.push('\n');
+    }
+    result
+}
+
+/// Copies declared untracked files from `repo_root` to `worktree_path`, creating parent directories,
+/// and updating matched port variables in `.env` files in-place.
+pub fn copy_and_merge_untracked_files(
+    repo_root: &Path,
+    worktree_path: &Path,
+    files_to_copy: &[String],
+    raw_ports: &BTreeMap<String, u16>,
+    slot_id: u32,
+) -> std::io::Result<()> {
+    for rel_path in files_to_copy {
+        let src = repo_root.join(rel_path);
+        let dest = worktree_path.join(rel_path);
+
+        if !src.exists() {
+            continue;
+        }
+
+        if let Some(parent) = dest.parent() {
+            fs::create_dir_all(parent)?;
+        }
+
+        let is_env_file = rel_path.ends_with(".env") || rel_path.contains(".env");
+        if is_env_file {
+            let content = fs::read_to_string(&src)?;
+            let updated = update_env_content_with_ports(&content, raw_ports, slot_id);
+            fs::write(&dest, updated)?;
+        } else {
+            fs::copy(&src, &dest)?;
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -59,5 +147,24 @@ mod tests {
             sanitize_compose_project_name("Repo.V1", "feat#1", 1),
             "repo_v1_feat_1_1"
         );
+    }
+
+    #[test]
+    fn test_update_env_content_with_ports() {
+        let original = r#"
+# Comments
+SECRET=xyz
+APP_PORT=80
+OTHER=abc
+"#;
+        let mut ports = BTreeMap::new();
+        ports.insert("APP_PORT".to_string(), 80);
+        ports.insert("EXTRA_PORT".to_string(), 9000);
+
+        let updated = update_env_content_with_ports(original, &ports, 2);
+        assert!(updated.contains("APP_PORT=82"));
+        assert!(updated.contains("SECRET=xyz"));
+        assert!(updated.contains("EXTRA_PORT=9002"));
+        assert!(updated.contains("# Comments"));
     }
 }

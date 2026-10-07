@@ -71,6 +71,19 @@ pub enum Commands {
         /// SemVer version tag (e.g., v1.2.0)
         version: String,
     },
+    /// Initialize git-claw configuration for the current repository
+    Init {
+        /// Automatically accept all inferred defaults without prompting
+        #[arg(long, short = 'y')]
+        yes: bool,
+    },
+    /// Output shell integration script for auto-cd navigation
+    #[command(name = "shell-hook")]
+    ShellHook {
+        /// Target shell (bash, zsh)
+        #[arg(default_value = "bash")]
+        shell: String,
+    },
 }
 
 #[derive(Subcommand, Debug, Clone, PartialEq, Eq)]
