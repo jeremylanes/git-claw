@@ -55,3 +55,25 @@ covers = ["FR-8"]
 after = [4]
 hitl = false
 risk = "low"
+
+[[entry]]
+id = 6
+type = "bug"
+title = "Fix port environment variable double prefixing (PORT_APP_PORT -> APP_PORT)"
+description = "In core/port.rs and infra/env_file.rs, ensure keys already ending with _PORT or starting with PORT_ are preserved as-is rather than prepended with PORT_ again."
+verify = "format_port_env_key('APP_PORT') returns 'APP_PORT' and format_port_env_key('web') returns 'PORT_WEB'."
+covers = ["FR-11"]
+after = [2]
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 7
+type = "bug"
+title = "Fix Docker Compose override generation: docker-compose.override.yml and !reset neutralization"
+description = "In infra/docker.rs, generate standard docker-compose.override.yml instead of .claw.override.yml, use container_name: !reset instead of container_name: null, scan network names in workflow/init.rs, and avoid breaking depends_on for shared services."
+verify = "Generated docker-compose.override.yml validates with docker compose config, unsets container_name with !reset, and attaches external network."
+covers = ["FR-12"]
+after = [3]
+hitl = false
+risk = "medium"
