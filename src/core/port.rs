@@ -59,6 +59,57 @@ pub fn calculate_effective_ports(
     Ok(result)
 }
 
+/// Returns true if a port key represents a client connection to a shared service.
+///
+/// Ports for shared services (e.g. `DATABASE_PORT` for a shared `postgres` container)
+/// must connect to the shared container on its standard port and not be shifted by slot ID.
+///
+/// # Example
+///
+/// ```
+/// use git_claw::core::port::is_shared_service_port;
+///
+/// let shared = vec!["postgres".to_string(), "redis".to_string()];
+/// assert!(is_shared_service_port("DATABASE_PORT", &shared));
+/// assert!(is_shared_service_port("REDIS_PORT", &shared));
+/// assert!(!is_shared_service_port("APP_PORT", &shared));
+/// ```
+pub fn is_shared_service_port(port_name: &str, shared_services: &[String]) -> bool {
+    let upper = port_name.to_ascii_uppercase();
+    for svc in shared_services {
+        let svc_upper = svc.to_ascii_uppercase();
+        if (svc_upper == "POSTGRES"
+            || svc_upper == "POSTGRESQL"
+            || svc_upper == "DB"
+            || svc_upper == "DATABASE")
+            && (upper.contains("DATABASE")
+                || upper.contains("POSTGRES")
+                || upper.contains("PGPORT")
+                || upper.contains("DB_")
+                || upper.starts_with("DB"))
+        {
+            return true;
+        }
+        if (svc_upper == "REDIS") && upper.contains("REDIS") {
+            return true;
+        }
+        if (svc_upper == "MYSQL" || svc_upper == "MARIADB")
+            && (upper.contains("MYSQL") || upper.contains("MARIADB"))
+        {
+            return true;
+        }
+        if (svc_upper == "MONGO" || svc_upper == "MONGODB") && upper.contains("MONGO") {
+            return true;
+        }
+        if (svc_upper == "RABBITMQ" || svc_upper == "AMQP")
+            && (upper.contains("RABBITMQ") || upper.contains("AMQP"))
+        {
+            return true;
+        }
+    }
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -91,5 +142,19 @@ mod tests {
 
         let result = calculate_effective_ports(&base_ports, 1);
         assert!(matches!(result, Err(PortError::PortOverflow { .. })));
+    }
+
+    #[test]
+    fn test_is_shared_service_port() {
+        let shared = vec!["postgres".to_string(), "redis".to_string()];
+        assert!(is_shared_service_port("DATABASE_PORT", &shared));
+        assert!(is_shared_service_port("TEST_DATABASE_PORT", &shared));
+        assert!(is_shared_service_port("DB_PORT", &shared));
+        assert!(is_shared_service_port("POSTGRES_PORT", &shared));
+        assert!(is_shared_service_port("PGPORT", &shared));
+        assert!(is_shared_service_port("REDIS_PORT", &shared));
+        assert!(!is_shared_service_port("APP_PORT", &shared));
+        assert!(!is_shared_service_port("FLOWER_PORT", &shared));
+        assert!(!is_shared_service_port("HTTP_PORT", &shared));
     }
 }

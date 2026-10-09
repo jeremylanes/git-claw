@@ -3,7 +3,7 @@
 use crate::cli::output::print_success;
 use crate::core::branch::BranchType;
 use crate::core::config::Config;
-use crate::core::port::calculate_effective_ports;
+use crate::core::port::{calculate_effective_ports, is_shared_service_port};
 use crate::core::slot::allocate_lowest_slot;
 use crate::infra::docker::generate_docker_compose_override;
 use crate::infra::env_file::{
@@ -62,7 +62,16 @@ pub fn start_worktree(options: StartOptions<'_>) -> Result<u32, WorkflowError> {
     }
 
     let slot_id = allocate_lowest_slot(registry.occupied_ids());
-    let effective_ports = calculate_effective_ports(&config.ports, slot_id)?;
+
+    // Filter out ports associated with shared services so client connections to shared containers are never broken
+    let shiftable_ports: BTreeMap<String, u16> = config
+        .ports
+        .iter()
+        .filter(|(k, _)| !is_shared_service_port(k, &config.docker.shared_services))
+        .map(|(k, &v)| (k.clone(), v))
+        .collect();
+
+    let effective_ports = calculate_effective_ports(&shiftable_ports, slot_id)?;
 
     // Create the Git worktree with the new branch
     create_worktree(
@@ -88,7 +97,7 @@ pub fn start_worktree(options: StartOptions<'_>) -> Result<u32, WorkflowError> {
         &toplevel,
         &worktree_path,
         &config.files.copy,
-        &config.ports,
+        &shiftable_ports,
         slot_id,
         Some(&compose_project),
     );

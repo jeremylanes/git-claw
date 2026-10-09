@@ -77,6 +77,26 @@ fn scan_compose_file(root: &Path) -> Option<String> {
     None
 }
 
+/// Returns true if a key name is a client connection port to a database/message broker/mail service,
+/// which must NOT be shifted by slot offsets.
+fn is_client_service_port(key: &str) -> bool {
+    let upper = key.to_ascii_uppercase();
+    upper.contains("DATABASE")
+        || upper.contains("DB_")
+        || upper.starts_with("DB")
+        || upper.contains("POSTGRES")
+        || upper.contains("PGPORT")
+        || upper.contains("MYSQL")
+        || upper.contains("MARIADB")
+        || upper.contains("MONGO")
+        || upper.contains("REDIS")
+        || upper.contains("EMAIL")
+        || upper.contains("SMTP")
+        || upper.contains("MAIL")
+        || upper.contains("AMQP")
+        || upper.contains("RABBITMQ")
+}
+
 /// Extracts port definitions from `.env` files.
 fn extract_ports_from_env_files(root: &Path, env_files: &[String]) -> BTreeMap<String, u16> {
     let mut ports = BTreeMap::new();
@@ -98,7 +118,7 @@ fn extract_ports_from_env_files(root: &Path, env_files: &[String]) -> BTreeMap<S
                 let key = key.trim();
                 let val = val.trim().trim_matches(|c| c == '\'' || c == '"');
 
-                if key == "PORT" || key.contains("PORT") {
+                if (key == "PORT" || key.contains("PORT")) && !is_client_service_port(key) {
                     if let Ok(port) = val.parse::<u16>() {
                         if port > 0 {
                             ports.insert(key.to_string(), port);
@@ -157,6 +177,7 @@ fn scan_compose_details(
                 let var_expr = &rest[..end_idx];
                 if let Some((var_name, default_val)) = var_expr.split_once(":-") {
                     if (var_name == "PORT" || var_name.contains("PORT"))
+                        && !is_client_service_port(var_name)
                         && !ports.contains_key(var_name)
                     {
                         if let Ok(port) = default_val.parse::<u16>() {
