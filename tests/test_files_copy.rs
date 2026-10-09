@@ -62,6 +62,10 @@ SECRET_KEY=secret123
     fs::write(sub_dir.join("settings.env"), "CUSTOM_PORT=5000\n").expect("write settings.env");
     fs::write(repo_path.join("untracked.txt"), "verbatim content").expect("write untracked");
 
+    let media_dir = repo_path.join("src/media");
+    fs::create_dir_all(&media_dir).expect("create media dir");
+    fs::write(media_dir.join("photo.jpg"), "photo-bytes").expect("write photo");
+
     // 2. Configure .git-claw.toml with [files] copy and [ports]
     let config_content = format!(
         r#"
@@ -70,7 +74,7 @@ main_branch = "main"
 worktree_root = "{}"
 
 [files]
-copy = [".env", "config/settings.env", "untracked.txt", "nonexistent.env"]
+copy = [".env", "config/settings.env", "untracked.txt", "src/media", "nonexistent.env"]
 
 [ports]
 APP_PORT = 80
@@ -113,6 +117,10 @@ NEW_EXTRA_PORT = 9999
     // 6. Verify non-env file copied verbatim
     let wt_untracked = fs::read_to_string(wt_path.join("untracked.txt")).expect("read untracked");
     assert_eq!(wt_untracked, "verbatim content");
+
+    // 7. Verify directory copied recursively
+    let wt_photo = fs::read_to_string(wt_path.join("src/media/photo.jpg")).expect("read photo");
+    assert_eq!(wt_photo, "photo-bytes");
 
     // 7. Verify primary repo .env is UNTOUCHED
     let primary_check = fs::read_to_string(repo_path.join(".env")).expect("read primary");

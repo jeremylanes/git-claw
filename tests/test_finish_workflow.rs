@@ -90,6 +90,11 @@ fn test_finish_worktree_merges_and_cleans_up() {
         .expect("git commit in wt");
     assert!(commit.status.success());
 
+    // Create untracked IDE folder to simulate IDE activity
+    let idea_dir = wt_path.join(".idea");
+    fs::create_dir_all(&idea_dir).expect("create .idea");
+    fs::write(idea_dir.join("workspace.xml"), "<xml/>").expect("write workspace.xml");
+
     // Finish worktree
     finish_worktree(FinishOptions {
         name: Some("login"),

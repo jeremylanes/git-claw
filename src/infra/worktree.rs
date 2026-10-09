@@ -14,9 +14,15 @@ pub fn create_worktree(
     base_branch: &str,
 ) -> Result<(), WorktreeError> {
     if worktree_path.exists() {
-        return Err(WorktreeError::DirectoryAlreadyExists(
-            worktree_path.to_string_lossy().to_string(),
-        ));
+        // If the directory exists but does not contain a .git file/directory (orphaned leftover e.g. from IDE),
+        // safely purge the stale directory instead of aborting.
+        if !worktree_path.join(".git").exists() {
+            let _ = fs::remove_dir_all(worktree_path);
+        } else {
+            return Err(WorktreeError::DirectoryAlreadyExists(
+                worktree_path.to_string_lossy().to_string(),
+            ));
+        }
     }
 
     if let Some(parent) = worktree_path.parent() {
@@ -80,10 +86,19 @@ pub fn remove_worktree(
     let output = cmd.output()?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(WorktreeError::RemovalFailed {
-            path: worktree_path.to_string_lossy().to_string(),
-            message: stderr.trim().to_string(),
-        });
+        // If git failed because worktree was already unregistered in git metadata,
+        // still remove the directory if force is requested.
+        if !worktree_path.exists() {
+            return Err(WorktreeError::RemovalFailed {
+                path: worktree_path.to_string_lossy().to_string(),
+                message: stderr.trim().to_string(),
+            });
+        }
+    }
+
+    // Completely remove leftover directory on disk (untracked files, IDE config, caches)
+    if force && worktree_path.exists() {
+        let _ = fs::remove_dir_all(worktree_path);
     }
 
     // Prune stale metadata

@@ -44,7 +44,13 @@ fn scan_env_files(root: &Path) -> Vec<String> {
             }
 
             if path.is_dir() {
-                visit_dirs(root, &path, depth + 1, results);
+                if name_str == "media" || name_str == "uploads" || name_str == "storage" {
+                    if let Ok(rel) = path.strip_prefix(root) {
+                        results.push(rel.to_string_lossy().to_string());
+                    }
+                } else {
+                    visit_dirs(root, &path, depth + 1, results);
+                }
             } else if path.is_file() && (name_str == ".env" || name_str.ends_with(".env")) {
                 if let Ok(rel) = path.strip_prefix(root) {
                     results.push(rel.to_string_lossy().to_string());

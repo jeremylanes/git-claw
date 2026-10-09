@@ -118,8 +118,25 @@ pub fn update_env_content_with_ports(
     result
 }
 
-/// Copies declared untracked files from `repo_root` to `worktree_path`, creating parent directories,
-/// and updating matched port variables and COMPOSE_PROJECT_NAME in `.env` files in-place.
+/// Recursively copies a directory and its contents from `src` to `dst`.
+pub fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(dst)?;
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        let dest_path = dst.join(entry.file_name());
+        if file_type.is_dir() {
+            copy_dir_all(&entry.path(), &dest_path)?;
+        } else {
+            fs::copy(entry.path(), dest_path)?;
+        }
+    }
+    Ok(())
+}
+
+/// Copies declared untracked files and directories from `repo_root` to `worktree_path`,
+/// creating parent directories, and updating matched port variables and COMPOSE_PROJECT_NAME
+/// in `.env` files in-place.
 pub fn copy_and_merge_untracked_files(
     repo_root: &Path,
     worktree_path: &Path,
@@ -133,6 +150,11 @@ pub fn copy_and_merge_untracked_files(
         let dest = worktree_path.join(rel_path);
 
         if !src.exists() {
+            continue;
+        }
+
+        if src.is_dir() {
+            copy_dir_all(&src, &dest)?;
             continue;
         }
 
