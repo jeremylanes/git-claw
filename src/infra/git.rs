@@ -186,3 +186,186 @@ pub fn git_create_annotated_tag(
 
     Ok(())
 }
+
+/// Checks if a branch exists locally in the repository.
+///
+/// # Example
+///
+/// ```no_run
+/// use std::path::Path;
+/// use git_claw::infra::git::git_branch_exists;
+///
+/// # fn run() -> Result<(), git_claw::infra::error::GitError> {
+/// let exists = git_branch_exists(Path::new("."), "main")?;
+/// assert!(exists);
+/// # Ok(())
+/// # }
+/// ```
+pub fn git_branch_exists(repo_root: &Path, branch: &str) -> Result<bool, GitError> {
+    let mut cmd = Command::new("git");
+    cmd.current_dir(repo_root);
+    let ref_spec = if branch.starts_with("refs/heads/") {
+        branch.to_string()
+    } else {
+        format!("refs/heads/{}", branch)
+    };
+    cmd.args(["rev-parse", "--verify", &ref_spec]);
+
+    let output = cmd.output().map_err(GitError::ProcessFailed)?;
+    Ok(output.status.success())
+}
+
+/// Returns the list of configured Git remotes in the repository.
+///
+/// # Example
+///
+/// ```no_run
+/// use std::path::Path;
+/// use git_claw::infra::git::git_get_remotes;
+///
+/// # fn run() -> Result<(), git_claw::infra::error::GitError> {
+/// let remotes = git_get_remotes(Path::new("."))?;
+/// assert!(remotes.contains(&"origin".to_string()));
+/// # Ok(())
+/// # }
+/// ```
+pub fn git_get_remotes(repo_root: &Path) -> Result<Vec<String>, GitError> {
+    let mut cmd = Command::new("git");
+    cmd.current_dir(repo_root);
+    cmd.arg("remote");
+
+    let output = cmd.output().map_err(GitError::ProcessFailed)?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(GitError::CommandFailed {
+            command: "git remote".to_string(),
+            message: stderr.trim().to_string(),
+        });
+    }
+
+    let remotes = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    Ok(remotes)
+}
+
+/// Pushes the branch to the specified remote repository and configures upstream tracking.
+///
+/// Executes `git push -u <remote> <branch>`.
+///
+/// # Example
+///
+/// ```no_run
+/// use std::path::Path;
+/// use git_claw::infra::git::git_push_upstream;
+///
+/// # fn run() -> Result<(), git_claw::infra::error::GitError> {
+/// git_push_upstream(Path::new("."), "origin", "feature/login")?;
+/// # Ok(())
+/// # }
+/// ```
+pub fn git_push_upstream(repo_root: &Path, remote: &str, branch: &str) -> Result<(), GitError> {
+    let mut cmd = Command::new("git");
+    cmd.current_dir(repo_root);
+    cmd.args(["push", "-u", remote, branch]);
+
+    let output = cmd.output().map_err(GitError::ProcessFailed)?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(GitError::CommandFailed {
+            command: format!("git push -u {} {}", remote, branch),
+            message: stderr.trim().to_string(),
+        });
+    }
+
+    Ok(())
+}
+
+/// Checks whether a branch exists on the specified remote repository.
+///
+/// Executes `git ls-remote --heads <remote> <branch>`.
+///
+/// # Example
+///
+/// ```no_run
+/// use std::path::Path;
+/// use git_claw::infra::git::git_remote_branch_exists;
+///
+/// # fn run() -> Result<(), git_claw::infra::error::GitError> {
+/// let exists = git_remote_branch_exists(Path::new("."), "origin", "feature/login")?;
+/// assert!(exists);
+/// # Ok(())
+/// # }
+/// ```
+pub fn git_remote_branch_exists(
+    repo_root: &Path,
+    remote: &str,
+    branch: &str,
+) -> Result<bool, GitError> {
+    let mut cmd = Command::new("git");
+    cmd.current_dir(repo_root);
+    cmd.args(["ls-remote", "--heads", remote, branch]);
+
+    let output = cmd.output().map_err(GitError::ProcessFailed)?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(GitError::CommandFailed {
+            command: format!("git ls-remote --heads {} {}", remote, branch),
+            message: stderr.trim().to_string(),
+        });
+    }
+
+    let expected_ref = if branch.starts_with("refs/heads/") {
+        branch.to_string()
+    } else {
+        format!("refs/heads/{}", branch)
+    };
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let exists = stdout
+        .lines()
+        .any(|line| line.split_whitespace().nth(1) == Some(&expected_ref));
+
+    Ok(exists)
+}
+
+/// Deletes a branch from the specified remote repository.
+///
+/// Executes `git push <remote> --delete <branch>`.
+///
+/// # Example
+///
+/// ```no_run
+/// use std::path::Path;
+/// use git_claw::infra::git::git_delete_remote_branch;
+///
+/// # fn run() -> Result<(), git_claw::infra::error::GitError> {
+/// git_delete_remote_branch(Path::new("."), "origin", "feature/login")?;
+/// # Ok(())
+/// # }
+/// ```
+pub fn git_delete_remote_branch(
+    repo_root: &Path,
+    remote: &str,
+    branch: &str,
+) -> Result<(), GitError> {
+    let mut cmd = Command::new("git");
+    cmd.current_dir(repo_root);
+    let branch_clean = branch.strip_prefix("refs/heads/").unwrap_or(branch);
+    cmd.args(["push", remote, "--delete", branch_clean]);
+
+    let output = cmd.output().map_err(GitError::ProcessFailed)?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(GitError::CommandFailed {
+            command: format!("git push {} --delete {}", remote, branch_clean),
+            message: stderr.trim().to_string(),
+        });
+    }
+
+    Ok(())
+}
+

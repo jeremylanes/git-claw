@@ -45,6 +45,17 @@ pub enum Commands {
         /// Force completion even if pre-finish hooks fail
         #[arg(long)]
         force: bool,
+        /// Keep remote branch on remote repository instead of deleting it
+        #[arg(long, short = 'k')]
+        keep_remote: bool,
+    },
+    /// Publish a worktree branch to remote with upstream tracking
+    Publish {
+        /// Worktree name (inferred from cwd if omitted)
+        name: Option<String>,
+        /// Remote repository name (defaults to origin)
+        #[arg(long)]
+        remote: Option<String>,
     },
     /// List all active worktree slots
     List,
@@ -95,6 +106,14 @@ pub enum WorktreeAction {
         /// Skip shared cache directory symlinking
         #[arg(long)]
         isolated: bool,
+    },
+    /// Publish the worktree branch to remote with upstream tracking
+    Publish {
+        /// Worktree name (inferred from cwd if omitted)
+        name: Option<String>,
+        /// Remote repository name (defaults to origin)
+        #[arg(long)]
+        remote: Option<String>,
     },
 }
 

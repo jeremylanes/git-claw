@@ -1,10 +1,10 @@
 //! Finish worktree lifecycle orchestration.
 
-use crate::cli::output::print_success;
+use crate::cli::output::{print_success, print_warning};
 use crate::core::config::Config;
 use crate::infra::git::{
-    git_checkout, git_is_clean, git_merge, resolve_git_common_dir, resolve_repo_name,
-    resolve_toplevel,
+    git_checkout, git_delete_remote_branch, git_get_remotes, git_is_clean, git_merge,
+    git_remote_branch_exists, resolve_git_common_dir, resolve_repo_name, resolve_toplevel,
 };
 use crate::infra::hook::{run_post_finish_hook, run_pre_finish_hook};
 use crate::infra::lock::SlotLock;
@@ -14,13 +14,48 @@ use crate::workflow::error::WorkflowError;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+/// Options for finishing and merging a worktree.
+///
+/// # Example
+///
+/// ```
+/// use git_claw::workflow::FinishOptions;
+///
+/// let options = FinishOptions {
+///     name: Some("login"),
+///     force: false,
+///     keep_remote: false,
+///     repo_root: None,
+/// };
+/// assert_eq!(options.name, Some("login"));
+/// assert!(!options.keep_remote);
+/// ```
+#[derive(Debug, Clone, Default)]
 pub struct FinishOptions<'a> {
     pub name: Option<&'a str>,
     pub force: bool,
+    pub keep_remote: bool,
     pub repo_root: Option<&'a Path>,
 }
 
 /// Orchestrates finishing and merging a worktree following the AD-8 teardown order.
+///
+/// # Example
+///
+/// ```no_run
+/// use std::path::Path;
+/// use git_claw::workflow::{finish_worktree, FinishOptions};
+///
+/// # fn run() -> Result<(), git_claw::workflow::WorkflowError> {
+/// finish_worktree(FinishOptions {
+///     name: Some("login"),
+///     force: false,
+///     keep_remote: false,
+///     repo_root: Some(Path::new(".")),
+/// })?;
+/// # Ok(())
+/// # }
+/// ```
 pub fn finish_worktree(options: FinishOptions<'_>) -> Result<(), WorkflowError> {
     let toplevel = resolve_toplevel(options.repo_root)?;
     let common_dir = resolve_git_common_dir(Some(&toplevel))?;
@@ -92,6 +127,36 @@ pub fn finish_worktree(options: FinishOptions<'_>) -> Result<(), WorkflowError> 
 
     // 5. Delete the merged branch
     delete_branch(&toplevel, &slot.branch, false)?;
+
+    // Teardown remote branch if published and not opted out
+    if !options.keep_remote {
+        let remote = config.remote().unwrap_or("origin");
+        let remotes = git_get_remotes(&toplevel).unwrap_or_default();
+        if remotes.iter().any(|r| r == remote) {
+            match git_remote_branch_exists(&toplevel, remote, &slot.branch) {
+                Ok(true) => {
+                    if let Err(e) = git_delete_remote_branch(&toplevel, remote, &slot.branch) {
+                        print_warning(format!(
+                            "Failed to delete remote branch '{}' from '{}': {}",
+                            slot.branch, remote, e
+                        ));
+                    } else {
+                        print_success(format!(
+                            "Remote branch '{}' deleted from '{}'",
+                            slot.branch, remote
+                        ));
+                    }
+                }
+                Ok(false) => {}
+                Err(e) => {
+                    print_warning(format!(
+                        "Could not check remote branch '{}' on '{}': {}",
+                        slot.branch, remote, e
+                    ));
+                }
+            }
+        }
+    }
 
     // 6. Release Slot ID in registry
     registry.remove_by_id(slot.id);

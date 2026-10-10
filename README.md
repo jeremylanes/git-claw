@@ -211,7 +211,26 @@ claw cd auth-flow
 
 ---
 
-### 4. Completing and Merging a Worktree (`git claw finish`)
+### 4. Publishing a Worktree to Remote (`git claw feature publish`)
+Push your feature, bugfix, or hotfix branch to your remote Git repository with automatic upstream tracking (analogous to `git flow feature publish`):
+
+```bash
+# From within the worktree directory (auto-infers the branch):
+git claw feature publish
+
+# Or explicitly by name from anywhere:
+git claw feature publish auth-flow
+
+# Or using the shorthand command:
+git claw publish auth-flow
+
+# Specify a custom remote (defaults to origin):
+git claw feature publish auth-flow --remote upstream
+```
+
+---
+
+### 5. Completing and Merging a Worktree (`git claw finish`)
 When your feature or bugfix is complete, finish it:
 
 ```bash
@@ -221,16 +240,20 @@ git claw finish auth-flow
 What `git claw finish` does:
 1. Runs the `hooks.pre_finish` command (e.g. `bin/test` or `cargo test`). If tests fail, **merge is blocked** to protect `main`!
 2. Merges the branch into `main`.
-3. Runs the `hooks.post_finish` command (e.g. `bin/down`).
-4. Removes the worktree directory and deletes the branch.
+3. Removes the worktree directory and deletes the local branch.
+4. **Purges the remote branch automatically**: If the branch was published to a remote (e.g. `origin`), `git-claw` deletes it from the remote (`git push origin --delete <branch>`), matching Git Flow behavior.
 5. Releases the Slot ID in `.git/claw/slots.json`.
+6. Runs the `hooks.post_finish` command (e.g. `bin/down`).
+
+> **Preserving remote branches**: If you wish to retain the branch on the remote repository upon finish, pass `--keep-remote` (or `-k`):  
+> `git claw finish auth-flow --keep-remote`
 
 > **Bypassing test failures**: If you need to force merge despite a failed hook, use:  
 > `git claw finish auth-flow --force`
 
 ---
 
-### 5. Discarding a Spike / POC (`git claw spike drop`)
+### 6. Discarding a Spike / POC (`git claw spike drop`)
 Spikes are disposable experiments that should never be merged into `main`:
 
 ```bash
@@ -240,7 +263,7 @@ This safely deletes the worktree folder, purges the `spike/test-vector-db` branc
 
 ---
 
-### 6. Production SemVer Release (`git claw tag`)
+### 7. Production SemVer Release (`git claw tag`)
 When you are on a clean `main` branch and ready to cut a production release:
 
 ```bash

@@ -15,6 +15,9 @@ pub enum WorkflowError {
     #[error("Cannot infer active worktree from current directory '{0}'")]
     CannotInferWorktree(String),
 
+    #[error("No git remote configured for this repository")]
+    NoRemoteConfigured,
+
     #[error("Primary repository working tree has uncommitted modifications; cannot merge safely")]
     DirtyWorkingTree,
 

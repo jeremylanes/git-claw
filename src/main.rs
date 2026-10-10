@@ -23,6 +23,19 @@ fn main() {
                 process::exit(1);
             }
         }
+        Some(Commands::Feature {
+            action: WorktreeAction::Publish { name, remote },
+        }) => {
+            if let Err(e) = workflow::publish_worktree(workflow::PublishOptions {
+                branch_type: Some(BranchType::Feature),
+                name: name.as_deref(),
+                remote: remote.as_deref(),
+                repo_root: None,
+            }) {
+                cli::output::print_error(e);
+                process::exit(1);
+            }
+        }
         Some(Commands::Bugfix {
             action: WorktreeAction::Start { name, isolated },
         }) => {
@@ -36,6 +49,19 @@ fn main() {
                 process::exit(1);
             }
         }
+        Some(Commands::Bugfix {
+            action: WorktreeAction::Publish { name, remote },
+        }) => {
+            if let Err(e) = workflow::publish_worktree(workflow::PublishOptions {
+                branch_type: Some(BranchType::Bugfix),
+                name: name.as_deref(),
+                remote: remote.as_deref(),
+                repo_root: None,
+            }) {
+                cli::output::print_error(e);
+                process::exit(1);
+            }
+        }
         Some(Commands::Hotfix {
             action: WorktreeAction::Start { name, isolated },
         }) => {
@@ -43,6 +69,19 @@ fn main() {
                 branch_type: BranchType::Hotfix,
                 name: &name,
                 isolated,
+                repo_root: None,
+            }) {
+                cli::output::print_error(e);
+                process::exit(1);
+            }
+        }
+        Some(Commands::Hotfix {
+            action: WorktreeAction::Publish { name, remote },
+        }) => {
+            if let Err(e) = workflow::publish_worktree(workflow::PublishOptions {
+                branch_type: Some(BranchType::Hotfix),
+                name: name.as_deref(),
+                remote: remote.as_deref(),
                 repo_root: None,
             }) {
                 cli::output::print_error(e);
@@ -73,10 +112,26 @@ fn main() {
                 process::exit(1);
             }
         }
-        Some(Commands::Finish { name, force }) => {
+        Some(Commands::Publish { name, remote }) => {
+            if let Err(e) = workflow::publish_worktree(workflow::PublishOptions {
+                branch_type: None,
+                name: name.as_deref(),
+                remote: remote.as_deref(),
+                repo_root: None,
+            }) {
+                cli::output::print_error(e);
+                process::exit(1);
+            }
+        }
+        Some(Commands::Finish {
+            name,
+            force,
+            keep_remote,
+        }) => {
             if let Err(e) = workflow::finish_worktree(workflow::FinishOptions {
                 name: name.as_deref(),
                 force,
+                keep_remote,
                 repo_root: None,
             }) {
                 cli::output::print_error(e);

@@ -77,3 +77,27 @@ covers = ["FR-5"]
 after = [5]
 hitl = false
 risk = "low"
+
+[[entry]]
+id = 8
+type = "story"
+title = "Remote worktree publish workflow (git claw [type] publish [name])"
+description = "Implements workflow/publish.rs pushing worktree branches to remote with upstream tracking, matching Git Flow feature publish ergonomics."
+verify = "Integration test creates a feature worktree, runs git claw feature publish, and confirms branch is pushed to a bare remote with tracking configured."
+covers = ["FR-13"]
+after = [5]
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 9
+type = "story"
+title = "Remote branch teardown on finish (git claw finish [--keep-remote])"
+description = "Extends workflow/finish.rs to automatically delete published remote branches upon completion unless --keep-remote is specified, matching Git Flow finish ergonomics."
+verify = "Integration test finishes a published worktree and verifies the branch is deleted from a bare remote, and confirms --keep-remote retains the branch."
+covers = ["FR-4", "FR-13"]
+after = [8]
+hitl = false
+risk = "low"
+
+

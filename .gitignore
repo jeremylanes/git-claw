@@ -1,11 +1,19 @@
 # Rust build artifacts
 /target/
 **/*.rs.bk
+*.pdb
+
+# Local git-claw and docker overrides
+.git-claw.toml
+docker-compose.override.yml
+docker-compose.*.override.yml
+.claw/
 
 # Environment and worktree files
 .env
+.env.*
+!.env.example
 .env.worktree
-.env.*.local
 *.env
 
 # IDE and Editor configurations
@@ -14,10 +22,18 @@
 *.swp
 *.swo
 *~
+*.sublime-project
+*.sublime-workspace
 
 # Operating System files
 .DS_Store
 Thumbs.db
+ehthumbs.db
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
 
 # Python & UV runtime artifacts (used by BMad scripts)
 __pycache__/
@@ -25,6 +41,10 @@ __pycache__/
 *$py.class
 .venv/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
-# User-specific BMad configurations
+# User-specific BMad & AI agent configurations
 _bmad/custom/*.user.toml
+.agent/
+.claude/

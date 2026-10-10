@@ -57,6 +57,8 @@ pub struct ProjectConfig {
     pub main_branch: String,
     #[serde(default)]
     pub worktree_root: String,
+    #[serde(default)]
+    pub remote: Option<String>,
 }
 
 fn default_main_branch() -> String {
@@ -129,6 +131,7 @@ impl Config {
             project: Some(ProjectConfig {
                 main_branch: "main".to_string(),
                 worktree_root: default_worktree_root(repo_name),
+                remote: None,
             }),
             ports: BTreeMap::new(),
             hooks: HooksConfig::default(),
@@ -144,6 +147,11 @@ impl Config {
             .as_ref()
             .map(|p| p.main_branch.as_str())
             .unwrap_or("main")
+    }
+
+    /// Returns the configured remote repository name, if specified.
+    pub fn remote(&self) -> Option<&str> {
+        self.project.as_ref().and_then(|p| p.remote.as_deref())
     }
 
     /// Returns the configured worktree root path, falling back to centralized default if empty.
@@ -171,6 +179,9 @@ impl Config {
                 }
                 if !other_proj.worktree_root.trim().is_empty() {
                     self_proj.worktree_root = other_proj.worktree_root;
+                }
+                if other_proj.remote.is_some() {
+                    self_proj.remote = other_proj.remote;
                 }
             } else {
                 self.project = Some(other_proj);
@@ -228,6 +239,7 @@ impl Config {
             parsed.project = Some(ProjectConfig {
                 main_branch: "main".to_string(),
                 worktree_root: default_worktree_root(repo_name),
+                remote: None,
             });
         }
 
