@@ -1,5 +1,6 @@
 //! Application Layer (workflow orchestration and command handlers).
 
+pub mod completion;
 pub mod error;
 pub mod finish;
 pub mod init;
@@ -12,6 +13,7 @@ pub mod spike;
 pub mod start;
 pub mod tag;
 
+pub use completion::{generate_completion, run_completion_workflow};
 pub use error::WorkflowError;
 pub use finish::{finish_worktree, FinishOptions};
 pub use init::{run_init_workflow, InitOptions};

@@ -95,6 +95,13 @@ pub enum Commands {
         #[arg(default_value = "bash")]
         shell: String,
     },
+    /// Generate shell auto-completion script
+    #[command(alias = "completions")]
+    Completion {
+        /// Target shell
+        #[arg(value_enum)]
+        shell: clap_complete::Shell,
+    },
 }
 
 #[derive(Subcommand, Debug, Clone, PartialEq, Eq)]

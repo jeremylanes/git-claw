@@ -100,4 +100,16 @@ after = [8]
 hitl = false
 risk = "low"
 
+[[entry]]
+id = 10
+type = "story"
+title = "Shell auto-completion engine (git claw completion <shell>)"
+description = "Integrates clap_complete to generate auto-completion scripts for Fish, Bash, Zsh, PowerShell, and Elvish, supporting both git-claw and git claw workflows."
+verify = "Integration tests verify git claw completion <shell> for fish, bash, and zsh emit valid syntax containing completion rules."
+covers = ["FR-14"]
+after = [9]
+hitl = false
+risk = "low"
+
+
 

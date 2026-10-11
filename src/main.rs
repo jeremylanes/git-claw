@@ -200,6 +200,12 @@ fn main() {
                 process::exit(1);
             }
         }
+        Some(Commands::Completion { shell }) => {
+            if let Err(e) = workflow::run_completion_workflow(shell) {
+                cli::output::print_error(e);
+                process::exit(1);
+            }
+        }
         None => {
             if let Err(e) = Cli::command().print_help() {
                 cli::output::print_error(e);

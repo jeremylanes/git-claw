@@ -51,6 +51,28 @@ git-claw --help
 git claw --help
 ```
 
+### Shell Auto-Completion 🐚
+Stream auto-completion scripts directly for **Fish**, **Bash**, **Zsh**, **PowerShell**, or **Elvish**:
+
+```bash
+# Fish (enables both `git claw <TAB>` and `git-claw <TAB>`):
+mkdir -p ~/.config/fish/completions
+git claw completion fish > ~/.config/fish/completions/git-claw.fish
+
+# Bash:
+mkdir -p ~/.local/share/bash-completion/completions
+git claw completion bash > ~/.local/share/bash-completion/completions/git-claw
+# Or evaluate directly in your current session:
+eval "$(git claw completion bash)"
+
+# Zsh:
+mkdir -p ~/.zfunc
+git claw completion zsh > ~/.zfunc/_git-claw
+# Ensure ~/.zfunc is in your fpath in ~/.zshrc:
+# fpath=(~/.zfunc $fpath)
+# autoload -Uz compinit && compinit
+```
+
 ### Optional Shell Helper for Directory Navigation
 To navigate directly into a worktree directory using `git claw cd`, add this function to your `~/.bashrc` or `~/.zshrc`:
 ```bash
@@ -270,6 +292,17 @@ When you are on a clean `main` branch and ready to cut a production release:
 git claw tag v1.2.0
 ```
 `git-claw` validates the SemVer format, ensures your working copy is clean, and creates an annotated Git tag on `main`.
+
+---
+
+### 8. Shell Auto-Completion (`git claw completion`)
+Generate shell completion definitions on the fly:
+
+```bash
+git claw completion fish > ~/.config/fish/completions/git-claw.fish
+git claw completion bash > ~/.local/share/bash-completion/completions/git-claw
+git claw completion zsh > ~/.zfunc/_git-claw
+```
 
 ---
 
