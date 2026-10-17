@@ -27,7 +27,7 @@ When human developers or autonomous AI agents work across multiple Git branches 
 - **Release Automation**: Infers SemVer versioning and updates `CHANGELOG.md` via Conventional Commits.
 - **Zero Lock-in**: Works out of the box in any Git repository with no mandatory configuration.
 
-**Reference Guide:** Consult the [Interactive Markdown Cheatsheet](CHEATSHEET.md) or the visual [HTML Cheatsheet](docs/index.html).
+**Reference Guide:** Consult the [Markdown Cheatsheet](CHEATSHEET.md) or the live visual [HTML Cheatsheet](https://jeremylanes.github.io/git-claw/).
 
 ---
 
