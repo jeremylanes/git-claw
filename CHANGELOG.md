@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.3.2] - 2026-10-17
+
+### Bug Fixes
+
+- **ci**: resolve clippy linter warnings
+
 ## [v0.3.1] - 2026-10-17
 
 ### Bug Fixes
