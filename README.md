@@ -291,7 +291,11 @@ When you are on a clean `main` branch and ready to cut a production release:
 ```bash
 git claw tag v1.2.0
 ```
-`git-claw` validates the SemVer format, ensures your working copy is clean, automatically synchronizes the version in `Cargo.toml` (and `Cargo.lock` if present) with a release commit, and creates an annotated Git tag on `main`.
+`git-claw` validates the SemVer format, ensures your working copy is clean, and automatically synchronizes the version in:
+- **Rust projects**: `Cargo.toml` (and refreshes `Cargo.lock` via `cargo check` if present)
+- **Python projects**: `pyproject.toml` or `project.toml` under `[project]` (PEP 621) or `[tool.poetry]` (and refreshes `uv.lock` via `uv lock` if present)
+
+It stages and commits the changed manifests as `chore: release <version>`, and creates an annotated Git tag on `main`. If the versions already match, file editing and committing are safely skipped.
 
 ---
 

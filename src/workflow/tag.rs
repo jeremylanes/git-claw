@@ -17,6 +17,91 @@ pub struct TagOptions<'a> {
     pub repo_root: Option<&'a Path>,
 }
 
+/// Updates the `version` field under specified section headers in a TOML string.
+///
+/// Preserves comments, indentation, and formatting.
+/// Returns `None` if no matching section contains a `version` key,
+/// or if the version is already equal to `new_version`.
+///
+/// # Arguments
+///
+/// * `content` - Raw string content of the TOML file.
+/// * `sections` - Slice of target section names (e.g., `&["project", "tool.poetry"]`).
+/// * `new_version` - Target SemVer version string (with or without 'v' prefix).
+///
+/// # Example
+///
+/// ```
+/// use git_claw::workflow::update_toml_version;
+///
+/// let toml = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n";
+/// let updated = update_toml_version(toml, &["package"], "0.2.0");
+/// assert_eq!(
+///     updated,
+///     Some("[package]\nname = \"demo\"\nversion = \"0.2.0\"\n".to_string())
+/// );
+/// ```
+pub fn update_toml_version(content: &str, sections: &[&str], new_version: &str) -> Option<String> {
+    let clean_version = new_version.trim_start_matches('v');
+    let mut in_target_section = false;
+    let mut replaced = false;
+    let mut result = String::with_capacity(content.len() + 16);
+
+    for line in content.split_inclusive('\n') {
+        let trimmed = line.trim();
+
+        if trimmed.starts_with('[') && !trimmed.starts_with("[[") {
+            let without_comment = if let Some(idx) = trimmed.find('#') {
+                trimmed[..idx].trim()
+            } else {
+                trimmed
+            };
+            in_target_section = without_comment
+                .strip_prefix('[')
+                .and_then(|s| s.strip_suffix(']'))
+                .map(|s| {
+                    let sec = s.trim();
+                    sections.iter().any(|&target| target == sec)
+                })
+                .unwrap_or(false);
+        } else if trimmed.starts_with("[[") {
+            in_target_section = false;
+        } else if in_target_section && !replaced {
+            if let Some(rest) = trimmed.strip_prefix("version") {
+                let rest = rest.trim_start();
+                if let Some(after_eq) = rest.strip_prefix('=') {
+                    let after_eq = after_eq.trim_start();
+                    if let Some(quote) = after_eq.chars().next() {
+                        if quote == '"' || quote == '\'' {
+                            let after_quote = &after_eq[quote.len_utf8()..];
+                            if let Some(end_idx) = after_quote.find(quote) {
+                                let current_version = &after_quote[..end_idx];
+                                if current_version == clean_version {
+                                    return None;
+                                }
+                                let old_pattern = format!("{}{}{}", quote, current_version, quote);
+                                let new_pattern = format!("{}{}{}", quote, clean_version, quote);
+                                let updated_line = line.replacen(&old_pattern, &new_pattern, 1);
+                                result.push_str(&updated_line);
+                                replaced = true;
+                                continue;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        result.push_str(line);
+    }
+
+    if replaced {
+        Some(result)
+    } else {
+        None
+    }
+}
+
 /// Updates the `version` field under `[package]` in a `Cargo.toml` string.
 ///
 /// Preserves comments, indentation, and formatting.
@@ -44,63 +129,49 @@ pub struct TagOptions<'a> {
 /// assert_eq!(unchanged, None);
 /// ```
 pub fn update_cargo_toml_version(content: &str, new_version: &str) -> Option<String> {
-    let mut in_package = false;
-    let mut replaced = false;
-    let mut result = String::with_capacity(content.len() + 16);
-
-    for line in content.split_inclusive('\n') {
-        let trimmed = line.trim();
-
-        if trimmed.starts_with('[') {
-            let without_comment = if let Some(idx) = trimmed.find('#') {
-                trimmed[..idx].trim()
-            } else {
-                trimmed
-            };
-            in_package = without_comment == "[package]"
-                || without_comment
-                    .strip_prefix('[')
-                    .and_then(|s| s.strip_suffix(']'))
-                    .map(|s| s.trim())
-                    == Some("package");
-        } else if in_package && !replaced {
-            if let Some(rest) = trimmed.strip_prefix("version") {
-                let rest = rest.trim_start();
-                if let Some(after_eq) = rest.strip_prefix('=') {
-                    let after_eq = after_eq.trim_start();
-                    if let Some(quote) = after_eq.chars().next() {
-                        if quote == '"' || quote == '\'' {
-                            let after_quote = &after_eq[quote.len_utf8()..];
-                            if let Some(end_idx) = after_quote.find(quote) {
-                                let current_version = &after_quote[..end_idx];
-                                if current_version == new_version {
-                                    return None;
-                                }
-                                let old_pattern = format!("{}{}{}", quote, current_version, quote);
-                                let new_pattern = format!("{}{}{}", quote, new_version, quote);
-                                let updated_line = line.replacen(&old_pattern, &new_pattern, 1);
-                                result.push_str(&updated_line);
-                                replaced = true;
-                                continue;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        result.push_str(line);
-    }
-
-    if replaced {
-        Some(result)
-    } else {
-        None
-    }
+    update_toml_version(content, &["package"], new_version)
 }
 
-/// Validates SemVer, checks clean trunk, synchronizes Cargo.toml version if present,
-/// and creates an annotated Git release tag.
+/// Updates the `version` field under `[project]` or `[tool.poetry]` in a `pyproject.toml` or `project.toml` string.
+///
+/// Preserves comments, indentation, and formatting.
+/// Returns `None` if neither section contains a `version` key,
+/// or if the version is already equal to `new_version`.
+///
+/// # Arguments
+///
+/// * `content` - Raw string content of `pyproject.toml` or `project.toml`.
+/// * `new_version` - Target SemVer version string (with or without 'v' prefix).
+///
+/// # Example
+///
+/// ```
+/// use git_claw::workflow::update_pyproject_toml_version;
+///
+/// let toml = "[project]\nname = \"demo\"\nversion = \"0.1.0\"\n";
+/// let updated = update_pyproject_toml_version(toml, "0.2.0");
+/// assert_eq!(
+///     updated,
+///     Some("[project]\nname = \"demo\"\nversion = \"0.2.0\"\n".to_string())
+/// );
+///
+/// let poetry_toml = "[tool.poetry]\nname = \"demo\"\nversion = \"0.1.0\"\n";
+/// let updated_poetry = update_pyproject_toml_version(poetry_toml, "0.2.0");
+/// assert_eq!(
+///     updated_poetry,
+///     Some("[tool.poetry]\nname = \"demo\"\nversion = \"0.2.0\"\n".to_string())
+/// );
+///
+/// let unchanged = update_pyproject_toml_version(toml, "0.1.0");
+/// assert_eq!(unchanged, None);
+/// ```
+pub fn update_pyproject_toml_version(content: &str, new_version: &str) -> Option<String> {
+    update_toml_version(content, &["project", "tool.poetry"], new_version)
+}
+
+/// Validates SemVer, checks clean trunk, synchronizes manifest versions if present
+/// (Rust `Cargo.toml` and Python `pyproject.toml` / `project.toml`), and creates
+/// an annotated Git release tag.
 ///
 /// # Arguments
 ///
@@ -135,28 +206,56 @@ pub fn tag_release(options: TagOptions<'_>) -> Result<(), WorkflowError> {
         return Err(WorkflowError::DirtyWorkingTree);
     }
 
+    let clean_version = options.version.trim_start_matches('v');
+    let mut files_to_commit: Vec<&str> = Vec::new();
+
     let cargo_toml_path = toplevel.join("Cargo.toml");
     if cargo_toml_path.exists() {
-        let clean_version = options.version.trim_start_matches('v');
         let content = std::fs::read_to_string(&cargo_toml_path)?;
         if let Some(new_content) = update_cargo_toml_version(&content, clean_version) {
             std::fs::write(&cargo_toml_path, new_content)?;
+            files_to_commit.push("Cargo.toml");
+            print_success(format!("Updated Cargo.toml to version '{}'", clean_version));
 
             let cargo_lock_path = toplevel.join("Cargo.lock");
-            let commit_files: &[&str] = if cargo_lock_path.exists() {
+            if cargo_lock_path.exists() {
                 let _ = std::process::Command::new("cargo")
                     .current_dir(&toplevel)
                     .arg("check")
                     .output();
-                &["Cargo.toml", "Cargo.lock"]
-            } else {
-                &["Cargo.toml"]
-            };
-
-            let commit_msg = format!("chore: release {}", options.version);
-            git_commit_files(&toplevel, commit_files, &commit_msg)?;
-            print_success(format!("Updated Cargo.toml to version '{}'", clean_version));
+                files_to_commit.push("Cargo.lock");
+            }
         }
+    }
+
+    let mut python_updated = false;
+    for manifest_name in ["pyproject.toml", "project.toml"] {
+        let manifest_path = toplevel.join(manifest_name);
+        if manifest_path.exists() {
+            let content = std::fs::read_to_string(&manifest_path)?;
+            if let Some(new_content) = update_pyproject_toml_version(&content, clean_version) {
+                std::fs::write(&manifest_path, new_content)?;
+                files_to_commit.push(manifest_name);
+                print_success(format!("Updated {} to version '{}'", manifest_name, clean_version));
+                python_updated = true;
+            }
+        }
+    }
+
+    if python_updated {
+        let uv_lock_path = toplevel.join("uv.lock");
+        if uv_lock_path.exists() {
+            let _ = std::process::Command::new("uv")
+                .arg("lock")
+                .current_dir(&toplevel)
+                .output();
+            files_to_commit.push("uv.lock");
+        }
+    }
+
+    if !files_to_commit.is_empty() {
+        let commit_msg = format!("chore: release {}", options.version);
+        git_commit_files(&toplevel, &files_to_commit, &commit_msg)?;
     }
 
     let message = format!("Release {}", options.version);

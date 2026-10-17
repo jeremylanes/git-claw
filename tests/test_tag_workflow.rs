@@ -250,3 +250,240 @@ foo = { version = "0.1.0" }
     let workspace_toml = "[workspace]\nmembers = [\"a\"]\n";
     assert_eq!(update_cargo_toml_version(workspace_toml, "0.2.0"), None);
 }
+
+#[test]
+fn test_update_pyproject_toml_version_helper() {
+    use git_claw::workflow::update_pyproject_toml_version;
+
+    // Test PEP 621 [project] table
+    let pep621 = r#"[project]
+name = "my-app" # project name
+version = "0.1.0" # version tag
+description = "Sample app"
+
+[project.scripts]
+run = "my_app:run"
+"#;
+    let updated_pep621 = update_pyproject_toml_version(pep621, "0.2.0").expect("should update");
+    assert!(updated_pep621.contains("version = \"0.2.0\" # version tag"));
+    assert_eq!(update_pyproject_toml_version(&updated_pep621, "0.2.0"), None);
+
+    // Test Poetry [tool.poetry] table
+    let poetry = r#"[tool.poetry]
+name = "my-poetry-app"
+version = "1.0.0"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+requests = { version = "2.31.0" }
+"#;
+    let updated_poetry = update_pyproject_toml_version(poetry, "1.1.0").expect("should update");
+    assert!(updated_poetry.contains("version = \"1.1.0\""));
+    // Dependency version should remain untouched
+    assert!(updated_poetry.contains("requests = { version = \"2.31.0\" }"));
+
+    // Test single quotes
+    let single_quotes = "[project]\nversion = '0.5.0'\n";
+    let updated_single =
+        update_pyproject_toml_version(single_quotes, "0.6.0").expect("should update");
+    assert_eq!(updated_single, "[project]\nversion = '0.6.0'\n");
+
+    // Non-project TOML returns None
+    let other_toml = "[build-system]\nrequires = [\"hatchling\"]\n";
+    assert_eq!(update_pyproject_toml_version(other_toml, "0.2.0"), None);
+}
+
+#[test]
+fn test_tag_release_updates_and_commits_pyproject_toml() {
+    let repo_dir = setup_repo();
+    let repo_path = repo_dir.path();
+
+    let pyproject_content = r#"[project]
+name = "sample-python"
+version = "0.1.0"
+description = "A sample python project"
+"#;
+    fs::write(repo_path.join("pyproject.toml"), pyproject_content).expect("write pyproject.toml");
+
+    let _ = std::process::Command::new("git")
+        .args(["add", "pyproject.toml"])
+        .current_dir(repo_path)
+        .output();
+    let _ = std::process::Command::new("git")
+        .args(["commit", "-m", "Add pyproject.toml"])
+        .current_dir(repo_path)
+        .output();
+
+    tag_release(TagOptions {
+        version: "v0.2.0",
+        repo_root: Some(repo_path),
+    })
+    .expect("tag release");
+
+    // Confirms pyproject.toml now contains version = "0.2.0"
+    let updated_pyproject =
+        fs::read_to_string(repo_path.join("pyproject.toml")).expect("read pyproject.toml");
+    assert!(updated_pyproject.contains("version = \"0.2.0\""));
+
+    // HEAD commit message is chore: release v0.2.0
+    let log_msg = std::process::Command::new("git")
+        .args(["log", "-1", "--pretty=%s"])
+        .current_dir(repo_path)
+        .output()
+        .expect("git log");
+    assert_eq!(
+        String::from_utf8_lossy(&log_msg.stdout).trim(),
+        "chore: release v0.2.0"
+    );
+
+    // Tag v0.2.0 points to HEAD
+    let head_rev = std::process::Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .current_dir(repo_path)
+        .output()
+        .expect("rev-parse HEAD");
+    let tag_rev = std::process::Command::new("git")
+        .args(["rev-parse", "v0.2.0^{commit}"])
+        .current_dir(repo_path)
+        .output()
+        .expect("rev-parse tag");
+    assert_eq!(
+        String::from_utf8_lossy(&head_rev.stdout).trim(),
+        String::from_utf8_lossy(&tag_rev.stdout).trim()
+    );
+}
+
+#[test]
+fn test_tag_release_updates_and_commits_project_toml() {
+    let repo_dir = setup_repo();
+    let repo_path = repo_dir.path();
+
+    let project_content = r#"[project]
+name = "sample-legacy"
+version = "1.0.0"
+"#;
+    fs::write(repo_path.join("project.toml"), project_content).expect("write project.toml");
+
+    let _ = std::process::Command::new("git")
+        .args(["add", "project.toml"])
+        .current_dir(repo_path)
+        .output();
+    let _ = std::process::Command::new("git")
+        .args(["commit", "-m", "Add project.toml"])
+        .current_dir(repo_path)
+        .output();
+
+    tag_release(TagOptions {
+        version: "1.1.0",
+        repo_root: Some(repo_path),
+    })
+    .expect("tag release");
+
+    // Confirms project.toml now contains version = "1.1.0"
+    let updated_project =
+        fs::read_to_string(repo_path.join("project.toml")).expect("read project.toml");
+    assert!(updated_project.contains("version = \"1.1.0\""));
+
+    // HEAD commit message is chore: release 1.1.0
+    let log_msg = std::process::Command::new("git")
+        .args(["log", "-1", "--pretty=%s"])
+        .current_dir(repo_path)
+        .output()
+        .expect("git log");
+    assert_eq!(
+        String::from_utf8_lossy(&log_msg.stdout).trim(),
+        "chore: release 1.1.0"
+    );
+}
+
+#[test]
+fn test_tag_release_with_pyproject_and_uv_lock() {
+    let repo_dir = setup_repo();
+    let repo_path = repo_dir.path();
+
+    let pyproject_content = r#"[project]
+name = "uv-project"
+version = "0.1.0"
+"#;
+    let uv_lock_content = "# uv lockfile v1\nversion = 1\n";
+    fs::write(repo_path.join("pyproject.toml"), pyproject_content).expect("write pyproject.toml");
+    fs::write(repo_path.join("uv.lock"), uv_lock_content).expect("write uv.lock");
+
+    let _ = std::process::Command::new("git")
+        .args(["add", "pyproject.toml", "uv.lock"])
+        .current_dir(repo_path)
+        .output();
+    let _ = std::process::Command::new("git")
+        .args(["commit", "-m", "Initial python with uv.lock"])
+        .current_dir(repo_path)
+        .output();
+
+    tag_release(TagOptions {
+        version: "v0.2.0",
+        repo_root: Some(repo_path),
+    })
+    .expect("tag release");
+
+    let updated_pyproject =
+        fs::read_to_string(repo_path.join("pyproject.toml")).expect("read pyproject.toml");
+    assert!(updated_pyproject.contains("version = \"0.2.0\""));
+
+    let log_msg = std::process::Command::new("git")
+        .args(["log", "-1", "--pretty=%s"])
+        .current_dir(repo_path)
+        .output()
+        .expect("git log");
+    assert_eq!(
+        String::from_utf8_lossy(&log_msg.stdout).trim(),
+        "chore: release v0.2.0"
+    );
+}
+
+#[test]
+fn test_tag_release_skips_commit_if_pyproject_version_matches() {
+    let repo_dir = setup_repo();
+    let repo_path = repo_dir.path();
+
+    let pyproject_content = r#"[project]
+name = "already-released"
+version = "0.2.0"
+"#;
+    fs::write(repo_path.join("pyproject.toml"), pyproject_content).expect("write pyproject.toml");
+
+    let _ = std::process::Command::new("git")
+        .args(["add", "pyproject.toml"])
+        .current_dir(repo_path)
+        .output();
+    let _ = std::process::Command::new("git")
+        .args(["commit", "-m", "Initial release v0.2.0"])
+        .current_dir(repo_path)
+        .output();
+
+    tag_release(TagOptions {
+        version: "v0.2.0",
+        repo_root: Some(repo_path),
+    })
+    .expect("tag release");
+
+    // Commit message should remain initial commit
+    let log_msg = std::process::Command::new("git")
+        .args(["log", "-1", "--pretty=%s"])
+        .current_dir(repo_path)
+        .output()
+        .expect("git log");
+    assert_eq!(
+        String::from_utf8_lossy(&log_msg.stdout).trim(),
+        "Initial release v0.2.0"
+    );
+
+    // Tag was still created
+    let tag_check = std::process::Command::new("git")
+        .args(["tag", "-l", "v0.2.0"])
+        .current_dir(repo_path)
+        .output()
+        .expect("check tag");
+    assert_eq!(
+        String::from_utf8_lossy(&tag_check.stdout).trim(),
+        "v0.2.0"
+    );
+}

@@ -24,4 +24,7 @@ pub use run::{run_command, RunOptions};
 pub use shell::{generate_shell_hook, run_shell_hook, ShellHookOptions};
 pub use spike::{drop_spike, DropSpikeOptions};
 pub use start::{start_worktree, StartOptions};
-pub use tag::{tag_release, update_cargo_toml_version, TagOptions};
+pub use tag::{
+    tag_release, update_cargo_toml_version, update_pyproject_toml_version, update_toml_version,
+    TagOptions,
+};
