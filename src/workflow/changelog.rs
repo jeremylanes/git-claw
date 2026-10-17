@@ -94,6 +94,7 @@ pub fn generate_changelog_entry(
 /// If `CHANGELOG.md` exists:
 /// - If it contains `# Changelog`, inserts the release entry immediately after the title line.
 /// - Otherwise, prepends the release entry before existing contents.
+///
 /// If `CHANGELOG.md` does not exist, creates it with a `# Changelog` heading and the entry.
 ///
 /// # Arguments

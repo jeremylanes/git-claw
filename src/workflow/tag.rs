@@ -67,7 +67,7 @@ pub fn update_toml_version(content: &str, sections: &[&str], new_version: &str) 
                 .and_then(|s| s.strip_suffix(']'))
                 .map(|s| {
                     let sec = s.trim();
-                    sections.iter().any(|&target| target == sec)
+                    sections.contains(&sec)
                 })
                 .unwrap_or(false);
         } else if trimmed.starts_with("[[") {

@@ -197,7 +197,7 @@ mod tests {
         };
 
         assert_eq!(determine_bump(&[]), BumpType::Patch);
-        assert_eq!(determine_bump(&[fix.clone()]), BumpType::Patch);
+        assert_eq!(determine_bump(std::slice::from_ref(&fix)), BumpType::Patch);
         assert_eq!(
             determine_bump(&[fix.clone(), feat.clone()]),
             BumpType::Minor
