@@ -249,7 +249,8 @@ mod tests {
     #[test]
     fn test_update_changelog_file_existing_with_header() {
         let dir = tempdir().unwrap();
-        let initial = "# Changelog\n\n## [v0.1.0] - 2026-10-16\n\n### Features\n\n- initial release\n";
+        let initial =
+            "# Changelog\n\n## [v0.1.0] - 2026-10-16\n\n### Features\n\n- initial release\n";
         std::fs::write(dir.path().join("CHANGELOG.md"), initial).unwrap();
 
         let entry = "## [v0.2.0] - 2026-10-17\n\n### Features\n\n- new feature";

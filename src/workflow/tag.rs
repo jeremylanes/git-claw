@@ -350,7 +350,10 @@ pub fn tag_release(options: TagOptions<'_>) -> Result<(), WorkflowError> {
             if let Some(new_content) = update_pyproject_toml_version(&content, clean_version) {
                 std::fs::write(&manifest_path, new_content)?;
                 files_to_commit.push(manifest_name);
-                print_success(format!("Updated {} to version '{}'", manifest_name, clean_version));
+                print_success(format!(
+                    "Updated {} to version '{}'",
+                    manifest_name, clean_version
+                ));
                 python_updated = true;
             }
         }
@@ -383,4 +386,3 @@ pub fn tag_release(options: TagOptions<'_>) -> Result<(), WorkflowError> {
 
     Ok(())
 }
-

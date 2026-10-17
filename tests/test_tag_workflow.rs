@@ -266,7 +266,10 @@ run = "my_app:run"
 "#;
     let updated_pep621 = update_pyproject_toml_version(pep621, "0.2.0").expect("should update");
     assert!(updated_pep621.contains("version = \"0.2.0\" # version tag"));
-    assert_eq!(update_pyproject_toml_version(&updated_pep621, "0.2.0"), None);
+    assert_eq!(
+        update_pyproject_toml_version(&updated_pep621, "0.2.0"),
+        None
+    );
 
     // Test Poetry [tool.poetry] table
     let poetry = r#"[tool.poetry]
@@ -482,10 +485,7 @@ version = "0.2.0"
         .current_dir(repo_path)
         .output()
         .expect("check tag");
-    assert_eq!(
-        String::from_utf8_lossy(&tag_check.stdout).trim(),
-        "v0.2.0"
-    );
+    assert_eq!(String::from_utf8_lossy(&tag_check.stdout).trim(), "v0.2.0");
 }
 
 #[test]
@@ -506,7 +506,11 @@ fn test_tag_release_auto_infer_minor_and_changelog() {
         .current_dir(repo_path)
         .output();
     let _ = std::process::Command::new("git")
-        .args(["commit", "-m", "feat(core): add conventional commit support"])
+        .args([
+            "commit",
+            "-m",
+            "feat(core): add conventional commit support",
+        ])
         .current_dir(repo_path)
         .output();
 

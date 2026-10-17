@@ -493,10 +493,7 @@ pub fn git_get_latest_tag(repo_root: &Path) -> Result<Option<String>, GitError> 
 /// # Ok(())
 /// # }
 /// ```
-pub fn git_get_commits_since(
-    repo_root: &Path,
-    tag: Option<&str>,
-) -> Result<Vec<String>, GitError> {
+pub fn git_get_commits_since(repo_root: &Path, tag: Option<&str>) -> Result<Vec<String>, GitError> {
     let mut cmd = Command::new("git");
     cmd.current_dir(repo_root);
     let range = match tag {

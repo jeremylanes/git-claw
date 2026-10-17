@@ -198,7 +198,10 @@ mod tests {
 
         assert_eq!(determine_bump(&[]), BumpType::Patch);
         assert_eq!(determine_bump(&[fix.clone()]), BumpType::Patch);
-        assert_eq!(determine_bump(&[fix.clone(), feat.clone()]), BumpType::Minor);
+        assert_eq!(
+            determine_bump(&[fix.clone(), feat.clone()]),
+            BumpType::Minor
+        );
         assert_eq!(determine_bump(&[fix, feat, breaking]), BumpType::Major);
     }
 }
