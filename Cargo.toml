@@ -1,6 +1,6 @@
 [package]
 name = "git-claw"
-version = "0.2.3"
+version = "0.3.0"
 edition = "2021"
 description = "Deterministic git worktree orchestration engine for developers and AI agents"
 license = "GPL-2.0-or-later"
