@@ -111,5 +111,17 @@ after = [9]
 hitl = false
 risk = "low"
 
+[[entry]]
+id = 11
+type = "story"
+title = "Herdr multiplexer auto-activation (non-blocking worktree open)"
+description = "Integrates infra/herdr.rs to automatically open newly created worktrees inside Herdr when HERDR_ENV=1 is detected, with strict test environment isolation (/tmp and test guards) and 100% graceful fallback when Herdr is absent."
+verify = "Integration tests verify worktree creation succeeds without errors when HERDR_ENV is unset, tests never trigger Herdr, and real repositories under Herdr invoke herdr worktree open."
+covers = ["FR-3", "FR-8", "FR-15"]
+after = [10]
+hitl = false
+risk = "low"
+
+
 
 

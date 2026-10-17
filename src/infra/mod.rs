@@ -5,6 +5,7 @@ pub mod env_file;
 pub mod error;
 pub mod fs;
 pub mod git;
+pub mod herdr;
 pub mod hook;
 pub mod lock;
 pub mod registry;
@@ -18,6 +19,7 @@ pub use git::{
     git_checkout, git_is_clean, git_merge, git_worktree_prune, resolve_git_common_dir,
     resolve_repo_name, resolve_toplevel,
 };
+pub use herdr::{is_herdr_active, open_worktree_in_herdr};
 pub use hook::{
     execute_hook_command, run_post_finish_hook, run_post_start_hook, run_pre_finish_hook,
 };

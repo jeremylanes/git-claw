@@ -147,6 +147,8 @@ pub fn start_worktree(options: StartOptions<'_>) -> Result<u32, WorkflowError> {
         &hook_env,
     );
 
+    crate::infra::herdr::open_worktree_in_herdr(&toplevel, &branch_name);
+
     print_success(format!(
         "Worktree '{}' started successfully (Slot: {}, Branch: {}, Path: {})",
         options.name,
