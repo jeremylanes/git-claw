@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="50%" stop-color="#0a0f1d" />
+      <stop offset="100%" stop-color="#030712" />
+    </linearGradient>
+
+    <!-- Claw Gradient: Rust/Orange/Coral -->
+    <linearGradient id="clawGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff7a59" />
+      <stop offset="50%" stop-color="#f05032" />
+      <stop offset="100%" stop-color="#d9381e" />
+    </linearGradient>
+
+    <!-- Branch/Cyan Gradient -->
+    <linearGradient id="branchGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#818cf8" />
+    </linearGradient>
+
+    <!-- Glow Filter -->
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Base Badge Background -->
+  <rect x="16" y="16" width="480" height="480" rx="108" fill="url(#bgGrad)" stroke="#1e293b" stroke-width="4" />
+
+  <!-- Subtle Inner Ring -->
+  <rect x="28" y="28" width="456" height="456" rx="96" fill="none" stroke="#334155" stroke-width="1.5" stroke-dasharray="8 6" opacity="0.4" />
+
+  <!-- Git Graph Network (Back Layer) -->
+  <g stroke="url(#branchGrad)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity="0.85">
+    <!-- Main branch spine -->
+    <line x1="256" y1="360" x2="256" y2="190" />
+    
+    <!-- Left worktree branch -->
+    <path d="M 256 310 C 256 260 180 260 180 200" fill="none" />
+    
+    <!-- Right worktree branch -->
+    <path d="M 256 310 C 256 260 332 260 332 200" fill="none" />
+  </g>
+
+  <!-- Git Commit Nodes -->
+  <circle cx="256" cy="360" r="14" fill="#0f172a" stroke="#38bdf8" stroke-width="6" />
+  <circle cx="256" cy="310" r="10" fill="#38bdf8" />
+  <circle cx="256" cy="190" r="14" fill="#0f172a" stroke="#818cf8" stroke-width="6" />
+  <circle cx="180" cy="200" r="12" fill="#0f172a" stroke="#38bdf8" stroke-width="5" />
+  <circle cx="332" cy="200" r="12" fill="#0f172a" stroke="#38bdf8" stroke-width="5" />
+
+  <!-- Crab Claw Mechanism (Foreground Focus) -->
+  <g fill="url(#clawGrad)" filter="url(#glow)">
+    <!-- Base Hinge Hub -->
+    <circle cx="256" cy="390" r="28" fill="#d9381e" stroke="#ffe4de" stroke-width="3" />
+    <circle cx="256" cy="390" r="12" fill="#0f172a" />
+
+    <!-- Left Pincer (Outer + Inner curve) -->
+    <path d="M 234 380 
+             C 170 360 100 290 106 180 
+             C 108 140 134 98 178 80 
+             C 168 116 172 154 196 182 
+             C 214 204 238 214 250 216 
+             C 220 236 196 280 220 340 
+             Z" />
+
+    <!-- Right Pincer (Outer + Inner curve) -->
+    <path d="M 278 380 
+             C 342 360 412 290 406 180 
+             C 404 140 378 98 334 80 
+             C 344 116 340 154 316 182 
+             C 298 204 274 214 262 216 
+             C 292 236 316 280 292 340 
+             Z" />
+
+    <!-- Sharp Pincer Tips / Gripper Teeth -->
+    <path d="M 178 80 C 194 106 206 136 212 160 C 200 144 186 128 178 80 Z" fill="#ffe4de" opacity="0.9" />
+    <path d="M 334 80 C 318 106 306 136 300 160 C 312 144 326 128 334 80 Z" fill="#ffe4de" opacity="0.9" />
+  </g>
+
+  <!-- Geometric Connection Accents -->
+  <circle cx="178" cy="80" r="6" fill="#38bdf8" />
+  <circle cx="334" cy="80" r="6" fill="#38bdf8" />
+
+  <!-- Bottom Brand Text -->
+  <text x="256" y="458" 
+        text-anchor="middle" 
+        font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" 
+        font-size="28" 
+        font-weight="800" 
+        letter-spacing="9" 
+        fill="#f8fafc">GIT-CLAW</text>
+</svg>

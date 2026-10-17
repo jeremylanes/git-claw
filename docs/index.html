@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>git-claw cheatsheet</title>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: #111827;
+      --card-border: #1f2937;
+      --terminal-bg: #030712;
+      --terminal-border: #1f2937;
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --primary: #f05032;
+      --primary-light: #ff7a59;
+      --accent: #38bdf8;
+      --success: #34d399;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      line-height: 1.6;
+      padding-bottom: 80px;
+    }
+
+    header {
+      background: linear-gradient(180deg, #111827 0%, #0b0f19 100%);
+      border-bottom: 1px solid var(--card-border);
+      padding: 50px 20px 40px;
+      text-align: center;
+    }
+
+    .logo-badge {
+      display: inline-block;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      font-size: 2.8rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+
+    h1 span {
+      color: var(--primary);
+    }
+
+    .subtitle {
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      max-width: 600px;
+      margin: 0 auto 24px;
+    }
+
+    nav {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 15px;
+    }
+
+    nav a {
+      color: var(--text);
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      background: #1f2937;
+      border: 1px solid #374151;
+      transition: all 0.2s ease;
+    }
+
+    nav a:hover {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 40px auto 0;
+      padding: 0 20px;
+    }
+
+    section {
+      margin-bottom: 60px;
+      scroll-margin-top: 30px;
+    }
+
+    .section-header {
+      border-bottom: 2px solid var(--primary);
+      padding-bottom: 8px;
+      margin-bottom: 24px;
+    }
+
+    .section-header h2 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .section-header p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      margin-top: 4px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      margin-bottom: 20px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      overflow: hidden;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+    }
+
+    @media (max-width: 768px) {
+      .card {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card-body {
+      padding: 24px;
+    }
+
+    .card-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+
+    .card-desc {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .card-desc ul {
+      margin-top: 8px;
+      padding-left: 18px;
+    }
+
+    .card-desc li {
+      margin-bottom: 4px;
+    }
+
+    .card-command {
+      background: var(--terminal-bg);
+      border-left: 1px solid var(--card-border);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      position: relative;
+    }
+
+    @media (max-width: 768px) {
+      .card-command {
+        border-left: none;
+        border-top: 1px solid var(--card-border);
+      }
+    }
+
+    .cmd-box {
+      font-family: var(--font-mono);
+      font-size: 0.88rem;
+      color: var(--accent);
+      line-height: 1.6;
+      word-break: break-all;
+    }
+
+    .cmd-box .prompt {
+      color: var(--primary);
+      user-select: none;
+      margin-right: 8px;
+      font-weight: bold;
+    }
+
+    .cmd-box .arg {
+      color: #e5e7eb;
+    }
+
+    .badge-sub {
+      display: inline-block;
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent);
+      margin-bottom: 10px;
+    }
+
+    footer {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      margin-top: 60px;
+      padding-top: 20px;
+      border-top: 1px solid var(--card-border);
+    }
+
+    footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo-badge">
+      <img src="../assets/logo.svg" alt="git-claw logo" width="80" height="80" />
+    </div>
+    <h1>git-claw <span>cheatsheet</span> 🦀</h1>
+    <p class="subtitle">A visual, interactive cheatsheet for deterministic Git Worktrees orchestration.</p>
+    <nav>
+      <a href="#about">About</a>
+      <a href="#setup">Setup</a>
+      <a href="#getting-started">Getting Started</a>
+      <a href="#features">Features</a>
+      <a href="#bugfixes">Bugfixes & Hotfixes</a>
+      <a href="#spikes">Spikes</a>
+      <a href="#navigation">Workspace</a>
+      <a href="#releases">Releases</a>
+      <a href="#commands">Commands</a>
+    </nav>
+  </header>
+
+  <div class="container">
+
+    <!-- About -->
+    <section id="about">
+      <div class="section-header">
+        <h2>About & Core Concepts</h2>
+        <p>Parallel human and AI workspaces without port conflicts or workspace collisions.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-body">
+          <div class="badge-sub">Isolation Model</div>
+          <div class="card-title">Dedicated Worktrees & Deterministic Slots</div>
+          <div class="card-desc">
+            Instead of in-place branch switching (`git checkout`), every branch lives in its own directory:
+            <ul>
+              <li><strong>Deterministic Slot ID</strong>: Sequential numeric slot (1, 2, 3...) allocated per worktree.</li>
+              <li><strong>Port Offsets</strong>: <code>Effective Port = Base Port + Slot ID</code>.</li>
+              <li><strong>Environment</strong>: Auto-generates <code>.env.worktree</code> in each workspace.</li>
+              <li><strong>Shared Caches</strong>: Transparent symlinks for <code>node_modules</code>, <code>target</code>, <code>.venv</code>.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="card-command">
+          <div class="cmd-box">
+            <span class="prompt">$</span>git claw <span class="arg">feature start auth-jwt</span><br />
+            <span class="prompt">→</span>Assigned Slot 1 (Web: 8001, DB: 5433)<br />
+            <span class="prompt">→</span>Created ../my-app-worktrees/auth-jwt
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Setup -->
+    <section id="setup">
+      <div class="section-header">
+        <h2>Setup & Installation</h2>
+        <p>Install the binary and configure shell auto-completions.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-body">
+          <div class="card-title">Installation via Cargo</div>
+          <div class="card-desc">Install directly from crates.io or compile from source. Git registers <code>git-claw</code> automatically as <code>git claw</code>.</div>
+        </div>
+        <div class="card-command">
+          <div class="cmd-box">
+            <span class="prompt">$</span>cargo install <span class="arg">git-claw</span><br />
+            <span class="prompt">$</span>git-claw <span class="arg">--version</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-body">
+          <div class="card-title">Shell Auto-Completion</div>
+          <div class="card-desc">Generate native auto-completion rules for Fish, Bash, or Zsh.</div>
+        </div>
+        <div class="card-command">
+          <div class="cmd-box">
+            <span class="prompt">$</span>git claw completion <span class="arg">fish > ~/.config/fish/completions/git-claw.fish</span><br />
+            <span class="prompt">$</span>git claw completion <span class="arg">bash > ~/.local/share/bash-completion/completions/git-claw</span><br />
+            <span class="prompt">$</span>git claw completion <span class="arg">zsh > ~/.zfunc/_git-claw</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Getting Started -->
+    <section id="getting-started">
+      <div class="section-header">
+        <h2>Getting Started</h2>
+        <p>Zero configuration out of the box, with optional project tailoring.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-body">
+          <div class="card-title">Initialize Repository (.git-claw.toml)</div>
+          <div class="card-desc">Interactively configure base ports, hooks, and shared cache directories. Pass <code>-y</code> to accept inferred defaults.</div>
+        </div>
+        <div class="card-command">
+          <div class="cmd-box">
+            <span class="prompt">$</span>git claw <span class="arg">init</span><br />
+            <span class="prompt">$</span>git claw <span class="arg">init --yes</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features -->
+    <section id="features">
+      <div class="section-header">
+        <h2>Features</h2>
+        <p>Develop new features branched off main in fully isolated workspaces.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-body">
+          <div class="card-title">Start a new feature</div>
+          <div class="card-desc">
+            Creates branch <code>feature/&lt;name&gt;</code>, allocates a unique Slot ID, generates <code>.env.worktree</code>, and symlinks shared caches.
+            <br /><br />
+            <em>Flag <code>--isolated</code>:</em> skips shared cache symlinking.
+          </div>
+        </div>
+        <div class="card-command">
+          <div class="cmd-box">
+            <span class="prompt">$</span>git claw feature start <span class="arg">auth-flow</span><br />
+            <span class="prompt">$</span>git claw feature start <span class="arg">auth-flow --isolated</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-body">
+          <div class="card-title">Work inside a feature</div>
+          <div class="card-desc">
+            Open in your default editor (VS Code, Cursor, <code>$EDITOR</code>) or execute commands directly inside the worktree with environment variables loaded.
+          </div>
+        </div>
+        <div class="card-command">
+          <div class="cmd-box">
+            <span class="prompt">$</span>git claw open <span class="arg">auth-flow</span><br />
+            <span class="prompt">$</span>git claw run <span class="arg">auth-flow npm run dev</span><br />
+            <span class="prompt">$</span>claw cd <span class="arg">auth-flow</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-body">
+          <div class="card-title">Publish a feature</div>
+          <div class="card-desc">
+            Pushes the feature branch to remote (<code>origin</code>) with upstream tracking. Auto-infers the branch when executed inside the worktree directory.
+          </div>
+        </div>
+        <div class="card-command">
+          <div class="cmd-box">
+            <span class="prompt">$</span>git claw feature publish <span class="arg">auth-flow</span><br />
+            <span class="prompt">$</span>git claw feature publish
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-body">
+          <div class="card-title">Finish up a feature</div>
+          <div class="card-desc">
+            Executes pre-finish test hooks (blocks merge if failing), merges into <code>main</code>, deletes worktree directory, deletes local & remote branches, and reclaims Slot ID.
+            <br /><br />
+            <em>Flag <code>--keep-remote</code>:</em> preserves remote branch.<br />
+            <em>Flag <code>--force</code>:</em> bypasses hook failures.
+          </div>
+        </div>
+        <div class="card-command">
+          <div class="cmd-box">
+            <span class="prompt">$</span>git claw finish <span class="arg">auth-flow</span><br />
+            <span class="prompt">$</span>git claw finish <span class="arg">auth-flow --keep-remote</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Bugfixes & Hotfixes -->
+    <section id="bugfixes">
+      <div class="section-header">
+        <h2>Bugfixes & Hotfixes</h2>
+        <p>Standard fixes and urgent production patches.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-body">
+          <div class="card-title">Bugfixes & Hotfixes Workflow</div>
+          <div class="card-desc">
+            Standard bugfixes branch off <code>main</code>. Hotfixes are reserved for critical production repairs. Both share identical lifecycle commands.
+          </div>
+        </div>
+        <div class="card-command">
+          <div class="cmd-box">
+            <span class="prompt">$</span>git claw bugfix start <span class="arg">fix-session</span><br />
+            <span class="prompt">$</span>git claw hotfix start <span class="arg">security-patch</span><br />
+            <span class="prompt">$</span>git claw finish <span class="arg">security-patch</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Spikes -->
+    <section id="spikes">
+      <div class="section-header">
+        <h2>Spikes (Disposable POCs)</h2>
+        <p>Experimental exploration intended to be discarded without merging.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-body">
+          <div class="card-title">Create and Drop Spikes</div>
+          <div class="card-desc">
+            Spikes create a temporary workspace on <code>spike/&lt;name&gt;</code>. Dropping safely destroys the directory, deletes the branch, and releases the Slot ID.
+          </div>
+        </div>
+        <div class="card-command">
+          <div class="cmd-box">
+            <span class="prompt">$</span>git claw spike start <span class="arg">vector-db</span><br />
+            <span class="prompt">$</span>git claw spike drop <span class="arg">vector-db</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Workspace & Inspection -->
+    <section id="navigation">
+      <div class="section-header">
+        <h2>Workspace & Inspection</h2>
+        <p>Inspect active workspaces and self-healing garbage collection.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-body">
+          <div class="card-title">List active workspaces</div>
+          <div class="card-desc">
+            Displays all active worktrees, assigned slots, computed ports, and commit SHAs. Detects manually deleted folders (<code>rm -rf</code>) and frees their slots automatically.
+          </div>
+        </div>
+        <div class="card-command">
+          <div class="cmd-box">
+            <span class="prompt">$</span>git claw <span class="arg">list</span><br />
+            <span class="prompt">$</span>git claw open <span class="arg">auth-flow</span><br />
+            <span class="prompt">$</span>git claw run <span class="arg">auth-flow cargo test</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Releases -->
+    <section id="releases">
+      <div class="section-header">
+        <h2>Releases (SemVer & Changelog)</h2>
+        <p>Automated Commitizen-style releases and manifest synchronization.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-body">
+          <div class="card-title">Automated Conventional Commit Tagging</div>
+          <div class="card-desc">
+            Run on a clean <code>main</code> branch without arguments:
+            <ul>
+              <li>Infers SemVer bump (Major: <code>feat!:</code>, Minor: <code>feat:</code>, Patch: <code>fix:</code>).</li>
+              <li>Generates/updates <code>CHANGELOG.md</code> grouped by category.</li>
+              <li>Updates <code>Cargo.toml</code> (Rust) or <code>pyproject.toml</code> / <code>project.toml</code> (Python/uv).</li>
+              <li>Synchronizes lockfiles (<code>Cargo.lock</code>, <code>uv.lock</code>).</li>
+              <li>Commits <code>chore: release &lt;version&gt;</code> and tags <code>main</code>.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="card-command">
+          <div class="cmd-box">
+            <span class="prompt">$</span>git claw <span class="arg">tag</span><br /><br />
+            <span class="prompt"># Explicit version override:</span><br />
+            <span class="prompt">$</span>git claw tag <span class="arg">v1.2.0</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Commands Summary -->
+    <section id="commands">
+      <div class="section-header">
+        <h2>Commands Quick Reference</h2>
+        <p>Complete syntax table for all git-claw actions.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-body" style="grid-column: span 2;">
+          <table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.9rem;">
+            <thead>
+              <tr style="border-bottom: 2px solid var(--card-border); color: var(--accent);">
+                <th style="padding: 10px 0;">Command</th>
+                <th style="padding: 10px 0;">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-bottom: 1px solid var(--card-border);">
+                <td style="padding: 8px 0; font-family: var(--font-mono); color: var(--accent);">git claw init [-y]</td>
+                <td>Initialize or update repository configuration</td>
+              </tr>
+              <tr style="border-bottom: 1px solid var(--card-border);">
+                <td style="padding: 8px 0; font-family: var(--font-mono); color: var(--accent);">git claw list</td>
+                <td>Display active worktrees, assigned slots, and ports</td>
+              </tr>
+              <tr style="border-bottom: 1px solid var(--card-border);">
+                <td style="padding: 8px 0; font-family: var(--font-mono); color: var(--accent);">git claw feature start &lt;name&gt;</td>
+                <td>Create and start isolated feature worktree</td>
+              </tr>
+              <tr style="border-bottom: 1px solid var(--card-border);">
+                <td style="padding: 8px 0; font-family: var(--font-mono); color: var(--accent);">git claw publish [&lt;name&gt;]</td>
+                <td>Push worktree branch to remote with upstream tracking</td>
+              </tr>
+              <tr style="border-bottom: 1px solid var(--card-border);">
+                <td style="padding: 8px 0; font-family: var(--font-mono); color: var(--accent);">git claw finish &lt;name&gt;</td>
+                <td>Verify tests, merge into main, delete branch, and cleanup</td>
+              </tr>
+              <tr style="border-bottom: 1px solid var(--card-border);">
+                <td style="padding: 8px 0; font-family: var(--font-mono); color: var(--accent);">git claw spike start|drop &lt;name&gt;</td>
+                <td>Create or discard disposable experiment worktree</td>
+              </tr>
+              <tr style="border-bottom: 1px solid var(--card-border);">
+                <td style="padding: 8px 0; font-family: var(--font-mono); color: var(--accent);">git claw open|run|cd &lt;name&gt;</td>
+                <td>Workspace editor open, command execution, or path navigation</td>
+              </tr>
+              <tr style="border-bottom: 1px solid var(--card-border);">
+                <td style="padding: 8px 0; font-family: var(--font-mono); color: var(--accent);">git claw tag [&lt;version&gt;]</td>
+                <td>Commitizen auto bump or explicit release tag</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; font-family: var(--font-mono); color: var(--accent);">git claw completion &lt;shell&gt;</td>
+                <td>Generate shell auto-completion script</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <p>git-claw is released under the <a href="../LICENSE">GPL-2.0 License</a>. View on <a href="https://github.com/jeremylanes/git-claw">GitHub</a>.</p>
+    </footer>
+
+  </div>
+
+</body>
+</html>
