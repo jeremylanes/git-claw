@@ -21,7 +21,10 @@ fn test_version_flag() {
     cmd.arg("--version");
     cmd.assert()
         .success()
-        .stdout(predicate::str::contains("git-claw 0.1.0"));
+        .stdout(predicate::str::contains(format!(
+            "git-claw {}",
+            env!("CARGO_PKG_VERSION")
+        )));
 }
 
 #[test]
