@@ -1,5 +1,14 @@
 # Changelog
 
+## [v0.3.3] - 2026-10-17
+
+### Other Changes
+
+- purge cached build artifacts from index
+- clean chect sheet link
+- add visual HTML cheatsheet and GitHub Pages workflow
+- chetsheet and logo
+
 ## [v0.3.2] - 2026-10-17
 
 ### Bug Fixes
