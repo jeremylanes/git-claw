@@ -16,8 +16,8 @@ pub use env_file::{sanitize_compose_project_name, write_env_worktree};
 pub use error::{GitError, HookError, LockError, RegistryError, WorktreeError};
 pub use fs::link_shared_cache_directories;
 pub use git::{
-    git_checkout, git_is_clean, git_merge, git_worktree_prune, resolve_git_common_dir,
-    resolve_repo_name, resolve_toplevel,
+    git_checkout, git_commit_files, git_is_clean, git_merge, git_worktree_prune,
+    resolve_git_common_dir, resolve_repo_name, resolve_toplevel,
 };
 pub use herdr::{is_herdr_active, open_worktree_in_herdr};
 pub use hook::{

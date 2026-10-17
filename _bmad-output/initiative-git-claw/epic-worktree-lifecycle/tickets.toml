@@ -122,6 +122,18 @@ after = [10]
 hitl = false
 risk = "low"
 
+[[entry]]
+id = 12
+type = "story"
+title = "Cargo.toml version synchronization on release tag (git claw tag <version>)"
+description = "Extends workflow/tag.rs to automatically synchronize package version in Cargo.toml and Cargo.lock when tagging a release, committing the version bump prior to creating the annotated tag."
+verify = "Integration test runs git claw tag v0.3.0 in a repo containing Cargo.toml, confirms Cargo.toml version is updated, committed, and tagged on main."
+covers = ["FR-9"]
+after = [11]
+hitl = false
+risk = "low"
+
+
 
 
 

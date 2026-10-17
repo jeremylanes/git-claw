@@ -368,3 +368,59 @@ pub fn git_delete_remote_branch(
 
     Ok(())
 }
+
+/// Adds specified files to the Git index and records a commit with the given message.
+///
+/// Executes `git add <files...>` followed by `git commit -m <message>`.
+///
+/// # Arguments
+///
+/// * `repo_root` - Path to the repository root directory.
+/// * `files` - List of file paths relative to `repo_root` to stage and commit.
+/// * `message` - Commit message text.
+///
+/// # Example
+///
+/// ```no_run
+/// use std::path::Path;
+/// use git_claw::infra::git::git_commit_files;
+///
+/// # fn run() -> Result<(), git_claw::infra::error::GitError> {
+/// git_commit_files(Path::new("."), &["Cargo.toml"], "chore: release 0.2.0")?;
+/// # Ok(())
+/// # }
+/// ```
+pub fn git_commit_files(repo_root: &Path, files: &[&str], message: &str) -> Result<(), GitError> {
+    if files.is_empty() {
+        return Ok(());
+    }
+
+    let mut add_cmd = Command::new("git");
+    add_cmd.current_dir(repo_root);
+    add_cmd.arg("add");
+    add_cmd.args(files);
+
+    let add_output = add_cmd.output().map_err(GitError::ProcessFailed)?;
+    if !add_output.status.success() {
+        let stderr = String::from_utf8_lossy(&add_output.stderr);
+        return Err(GitError::CommandFailed {
+            command: format!("git add {}", files.join(" ")),
+            message: stderr.trim().to_string(),
+        });
+    }
+
+    let mut commit_cmd = Command::new("git");
+    commit_cmd.current_dir(repo_root);
+    commit_cmd.args(["commit", "-m", message]);
+
+    let commit_output = commit_cmd.output().map_err(GitError::ProcessFailed)?;
+    if !commit_output.status.success() {
+        let stderr = String::from_utf8_lossy(&commit_output.stderr);
+        return Err(GitError::CommandFailed {
+            command: format!("git commit -m {}", message),
+            message: stderr.trim().to_string(),
+        });
+    }
+
+    Ok(())
+}

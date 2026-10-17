@@ -291,7 +291,7 @@ When you are on a clean `main` branch and ready to cut a production release:
 ```bash
 git claw tag v1.2.0
 ```
-`git-claw` validates the SemVer format, ensures your working copy is clean, and creates an annotated Git tag on `main`.
+`git-claw` validates the SemVer format, ensures your working copy is clean, automatically synchronizes the version in `Cargo.toml` (and `Cargo.lock` if present) with a release commit, and creates an annotated Git tag on `main`.
 
 ---
 
