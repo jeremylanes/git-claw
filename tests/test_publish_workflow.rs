@@ -1,6 +1,8 @@
 use assert_cmd::Command;
 use git_claw::core::branch::BranchType;
-use git_claw::workflow::{publish_worktree, start_worktree, PublishOptions, StartOptions, WorkflowError};
+use git_claw::workflow::{
+    publish_worktree, start_worktree, PublishOptions, StartOptions, WorkflowError,
+};
 use predicates::prelude::*;
 use std::fs;
 use tempfile::tempdir;
@@ -38,7 +40,12 @@ fn setup_repo_with_remote() -> (tempfile::TempDir, tempfile::TempDir, tempfile::
 
     // Add origin remote
     let add_remote = std::process::Command::new("git")
-        .args(["remote", "add", "origin", &remote_dir.path().to_string_lossy()])
+        .args([
+            "remote",
+            "add",
+            "origin",
+            &remote_dir.path().to_string_lossy(),
+        ])
         .current_dir(repo_path)
         .output()
         .expect("git remote add");
@@ -116,7 +123,9 @@ fn test_publish_active_worktree_inference() {
         .args(["feature", "publish"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("Branch 'feature/login' successfully published to 'origin'"));
+        .stdout(predicate::str::contains(
+            "Branch 'feature/login' successfully published to 'origin'",
+        ));
 
     // Verify remote bare repo has the branch
     let verify_remote = std::process::Command::new("git")
@@ -169,7 +178,9 @@ fn test_publish_by_explicit_name() {
         .args(["feature", "publish", "auth"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("Branch 'feature/auth' successfully published to 'origin'"));
+        .stdout(predicate::str::contains(
+            "Branch 'feature/auth' successfully published to 'origin'",
+        ));
 
     // Verify remote bare repo has the branch
     let verify_remote = std::process::Command::new("git")
@@ -210,7 +221,9 @@ fn test_publish_top_level_shorthand() {
         .args(["publish", "fix-bug"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("Branch 'bugfix/fix-bug' successfully published to 'origin'"));
+        .stdout(predicate::str::contains(
+            "Branch 'bugfix/fix-bug' successfully published to 'origin'",
+        ));
 
     let verify_remote = std::process::Command::new("git")
         .args(["rev-parse", "--verify", "refs/heads/bugfix/fix-bug"])
@@ -235,7 +248,12 @@ fn test_publish_custom_remote() {
     assert!(init_upstream.status.success());
 
     let _ = std::process::Command::new("git")
-        .args(["remote", "add", "upstream", &upstream_dir.path().to_string_lossy()])
+        .args([
+            "remote",
+            "add",
+            "upstream",
+            &upstream_dir.path().to_string_lossy(),
+        ])
         .current_dir(repo_path)
         .output();
 
@@ -264,7 +282,9 @@ fn test_publish_custom_remote() {
         .args(["hotfix", "publish", "patch-sec", "--remote", "upstream"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("Branch 'hotfix/patch-sec' successfully published to 'upstream'"));
+        .stdout(predicate::str::contains(
+            "Branch 'hotfix/patch-sec' successfully published to 'upstream'",
+        ));
 
     let verify_upstream = std::process::Command::new("git")
         .args(["rev-parse", "--verify", "refs/heads/hotfix/patch-sec"])
@@ -284,7 +304,9 @@ fn test_publish_unknown_worktree_fails() {
         .args(["feature", "publish", "nonexistent-branch"])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("not found in active slots registry"));
+        .stderr(predicate::str::contains(
+            "not found in active slots registry",
+        ));
 }
 
 #[test]

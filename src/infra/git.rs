@@ -368,4 +368,3 @@ pub fn git_delete_remote_branch(
 
     Ok(())
 }
-

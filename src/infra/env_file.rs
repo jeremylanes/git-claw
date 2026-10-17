@@ -165,7 +165,8 @@ pub fn copy_and_merge_untracked_files(
         let is_env_file = rel_path.ends_with(".env") || rel_path.contains(".env");
         if is_env_file {
             let content = fs::read_to_string(&src)?;
-            let updated = update_env_content_with_ports(&content, raw_ports, slot_id, compose_project_name);
+            let updated =
+                update_env_content_with_ports(&content, raw_ports, slot_id, compose_project_name);
             fs::write(&dest, updated)?;
         } else {
             fs::copy(&src, &dest)?;

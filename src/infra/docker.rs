@@ -407,7 +407,8 @@ pub fn generate_docker_compose_override(
         (Vec::new(), Vec::new(), Vec::new())
     };
 
-    let content = generate_override_content_full(&services, config, &extra_networks, &extra_volumes);
+    let content =
+        generate_override_content_full(&services, config, &extra_networks, &extra_volumes);
     let target = worktree_path.join("docker-compose.override.yml");
     fs::write(&target, &content)?;
 

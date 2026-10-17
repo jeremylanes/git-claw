@@ -243,7 +243,12 @@ fn setup_repo_with_remote() -> (tempfile::TempDir, tempfile::TempDir, tempfile::
         .output();
 
     let add_remote = std::process::Command::new("git")
-        .args(["remote", "add", "origin", &remote_dir.path().to_string_lossy()])
+        .args([
+            "remote",
+            "add",
+            "origin",
+            &remote_dir.path().to_string_lossy(),
+        ])
         .current_dir(repo_path)
         .output()
         .expect("git remote add");
@@ -530,5 +535,3 @@ fn test_finish_remote_unreachable_is_non_fatal() {
     assert!(!wt_path.exists());
     assert!(repo_path.join("file.txt").exists());
 }
-
-

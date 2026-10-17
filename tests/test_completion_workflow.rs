@@ -78,7 +78,5 @@ fn test_cli_completion_alias() {
 #[test]
 fn test_cli_completion_invalid_shell() {
     let mut cmd = Command::cargo_bin("git-claw").expect("binary exists");
-    cmd.args(["completion", "unknown_shell"])
-        .assert()
-        .failure();
+    cmd.args(["completion", "unknown_shell"]).assert().failure();
 }
