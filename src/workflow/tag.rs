@@ -2,9 +2,14 @@
 
 use crate::cli::output::print_success;
 use crate::core::config::Config;
-use crate::core::semver::validate_semver;
+use crate::core::conventional::{determine_bump, parse_conventional_commit, ConventionalCommit};
+use crate::core::semver::{parse_semver, validate_semver, SemVer};
 use crate::infra::git::{
-    git_commit_files, git_create_annotated_tag, git_is_clean, resolve_repo_name, resolve_toplevel,
+    git_commit_files, git_create_annotated_tag, git_get_commits_since, git_get_latest_tag,
+    git_is_clean, resolve_repo_name, resolve_toplevel,
+};
+use crate::workflow::changelog::{
+    current_date_ymd, generate_changelog_entry, update_changelog_file,
 };
 use crate::workflow::error::WorkflowError;
 use std::path::Path;
@@ -12,7 +17,8 @@ use std::path::Path;
 /// Options for release tagging workflow.
 pub struct TagOptions<'a> {
     /// Target release version string (e.g., "v0.3.0" or "0.3.0").
-    pub version: &'a str,
+    /// If omitted (`None`), inferred automatically from conventional commits.
+    pub version: Option<&'a str>,
     /// Optional explicit path to the repository root.
     pub repo_root: Option<&'a Path>,
 }
@@ -169,9 +175,59 @@ pub fn update_pyproject_toml_version(content: &str, new_version: &str) -> Option
     update_toml_version(content, &["project", "tool.poetry"], new_version)
 }
 
+/// Helper to extract base SemVer from manifest files (Cargo.toml, pyproject.toml, project.toml).
+fn read_base_version_from_manifests(repo_root: &Path) -> Option<SemVer> {
+    let cargo_toml = repo_root.join("Cargo.toml");
+    if cargo_toml.exists() {
+        if let Ok(content) = std::fs::read_to_string(&cargo_toml) {
+            if let Ok(val) = content.parse::<toml::Value>() {
+                if let Some(ver) = val
+                    .get("package")
+                    .and_then(|p| p.get("version"))
+                    .and_then(|v| v.as_str())
+                {
+                    if let Some(mut sem) = parse_semver(ver) {
+                        sem.has_v_prefix = true;
+                        return Some(sem);
+                    }
+                }
+            }
+        }
+    }
+    for manifest_name in ["pyproject.toml", "project.toml"] {
+        let manifest_path = repo_root.join(manifest_name);
+        if manifest_path.exists() {
+            if let Ok(content) = std::fs::read_to_string(&manifest_path) {
+                if let Ok(val) = content.parse::<toml::Value>() {
+                    let ver = val
+                        .get("project")
+                        .and_then(|p| p.get("version"))
+                        .and_then(|v| v.as_str())
+                        .or_else(|| {
+                            val.get("tool")
+                                .and_then(|t| t.get("poetry"))
+                                .and_then(|p| p.get("version"))
+                                .and_then(|v| v.as_str())
+                        });
+                    if let Some(ver_str) = ver {
+                        if let Some(mut sem) = parse_semver(ver_str) {
+                            sem.has_v_prefix = true;
+                            return Some(sem);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
 /// Validates SemVer, checks clean trunk, synchronizes manifest versions if present
 /// (Rust `Cargo.toml` and Python `pyproject.toml` / `project.toml`), and creates
 /// an annotated Git release tag.
+///
+/// If `options.version` is omitted (`None`), the next SemVer version and release notes
+/// are automatically inferred from Conventional Commits since the latest Git tag.
 ///
 /// # Arguments
 ///
@@ -184,18 +240,21 @@ pub fn update_pyproject_toml_version(content: &str, new_version: &str) -> Option
 /// use git_claw::workflow::{tag_release, TagOptions};
 ///
 /// # fn run() -> Result<(), git_claw::workflow::WorkflowError> {
+/// // Explicit version:
 /// tag_release(TagOptions {
-///     version: "v0.3.0",
+///     version: Some("v0.3.0"),
+///     repo_root: Some(Path::new(".")),
+/// })?;
+///
+/// // Inferred from conventional commits:
+/// tag_release(TagOptions {
+///     version: None,
 ///     repo_root: Some(Path::new(".")),
 /// })?;
 /// # Ok(())
 /// # }
 /// ```
 pub fn tag_release(options: TagOptions<'_>) -> Result<(), WorkflowError> {
-    if !validate_semver(options.version) {
-        return Err(WorkflowError::InvalidSemVer(options.version.to_string()));
-    }
-
     let toplevel = resolve_toplevel(options.repo_root)?;
     let repo_name = resolve_repo_name(&toplevel);
 
@@ -206,8 +265,63 @@ pub fn tag_release(options: TagOptions<'_>) -> Result<(), WorkflowError> {
         return Err(WorkflowError::DirtyWorkingTree);
     }
 
-    let clean_version = options.version.trim_start_matches('v');
     let mut files_to_commit: Vec<&str> = Vec::new();
+
+    let target_version = match options.version {
+        Some(v) => {
+            if !validate_semver(v) {
+                return Err(WorkflowError::InvalidSemVer(v.to_string()));
+            }
+            v.to_string()
+        }
+        None => {
+            let latest_tag = git_get_latest_tag(&toplevel)?;
+            let raw_commits = git_get_commits_since(&toplevel, latest_tag.as_deref())?;
+            if raw_commits.is_empty() {
+                return Err(WorkflowError::ExecutionFailed(
+                    "No commits found since last release tag".to_string(),
+                ));
+            }
+
+            let conventional_commits: Vec<ConventionalCommit> = raw_commits
+                .iter()
+                .filter_map(|msg| parse_conventional_commit(msg))
+                .collect();
+            let bump_type = determine_bump(&conventional_commits);
+
+            let base_semver = if let Some(tag) = &latest_tag {
+                parse_semver(tag).unwrap_or(SemVer {
+                    major: 0,
+                    minor: 1,
+                    patch: 0,
+                    has_v_prefix: tag.starts_with('v'),
+                })
+            } else {
+                read_base_version_from_manifests(&toplevel).unwrap_or(SemVer {
+                    major: 0,
+                    minor: 1,
+                    patch: 0,
+                    has_v_prefix: true,
+                })
+            };
+
+            let target = base_semver.bump(bump_type).to_string();
+            print_success(format!(
+                "Inferred bump: {:?} -> version '{}'",
+                bump_type, target
+            ));
+
+            let date = current_date_ymd();
+            let entry = generate_changelog_entry(&target, &date, &conventional_commits);
+            update_changelog_file(&toplevel, &entry)?;
+            files_to_commit.push("CHANGELOG.md");
+            print_success("Updated CHANGELOG.md".to_string());
+
+            target
+        }
+    };
+
+    let clean_version = target_version.trim_start_matches('v');
 
     let cargo_toml_path = toplevel.join("Cargo.toml");
     if cargo_toml_path.exists() {
@@ -254,18 +368,19 @@ pub fn tag_release(options: TagOptions<'_>) -> Result<(), WorkflowError> {
     }
 
     if !files_to_commit.is_empty() {
-        let commit_msg = format!("chore: release {}", options.version);
+        let commit_msg = format!("chore: release {}", target_version);
         git_commit_files(&toplevel, &files_to_commit, &commit_msg)?;
     }
 
-    let message = format!("Release {}", options.version);
-    git_create_annotated_tag(&toplevel, options.version, config.main_branch(), &message)?;
+    let message = format!("Release {}", target_version);
+    git_create_annotated_tag(&toplevel, &target_version, config.main_branch(), &message)?;
 
     print_success(format!(
         "Created annotated release tag '{}' on branch '{}'",
-        options.version,
+        target_version,
         config.main_branch()
     ));
 
     Ok(())
 }
+

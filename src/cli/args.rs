@@ -77,10 +77,10 @@ pub enum Commands {
         /// Worktree name (inferred from cwd if omitted)
         name: Option<String>,
     },
-    /// Create an annotated SemVer release tag on main
+    /// Create an annotated SemVer release tag on main (auto-infers version and changelog from Conventional Commits if omitted)
     Tag {
-        /// SemVer version tag (e.g., v1.2.0)
-        version: String,
+        /// SemVer version tag (e.g., v1.2.0; if omitted, automatically inferred from Conventional Commits)
+        version: Option<String>,
     },
     /// Initialize git-claw configuration for the current repository
     Init {

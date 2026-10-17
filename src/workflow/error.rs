@@ -27,6 +27,9 @@ pub enum WorkflowError {
     #[error("Command execution failed: {0}")]
     CommandExecutionFailed(String),
 
+    #[error("{0}")]
+    ExecutionFailed(String),
+
     #[error("No command specified to execute")]
     NoCommandSpecified,
 

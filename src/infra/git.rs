@@ -424,3 +424,108 @@ pub fn git_commit_files(repo_root: &Path, files: &[&str], message: &str) -> Resu
 
     Ok(())
 }
+
+/// Returns the latest tag reachable from the current commit, or `None` if no tags exist.
+///
+/// Executes `git describe --tags --abbrev=0`.
+///
+/// # Arguments
+///
+/// * `repo_root` - Path to the repository root directory.
+///
+/// # Example
+///
+/// ```no_run
+/// use std::path::Path;
+/// use git_claw::infra::git::git_get_latest_tag;
+///
+/// # fn run() -> Result<(), git_claw::infra::error::GitError> {
+/// let latest = git_get_latest_tag(Path::new("."))?;
+/// if let Some(tag) = latest {
+///     println!("Latest tag: {}", tag);
+/// }
+/// # Ok(())
+/// # }
+/// ```
+pub fn git_get_latest_tag(repo_root: &Path) -> Result<Option<String>, GitError> {
+    let mut cmd = Command::new("git");
+    cmd.current_dir(repo_root);
+    cmd.args(["describe", "--tags", "--abbrev=0"]);
+
+    let output = cmd.output().map_err(GitError::ProcessFailed)?;
+    if output.status.success() {
+        let tag = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if tag.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(tag))
+        }
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if stderr.contains("not a git repository") {
+            return Err(GitError::NotAGitRepository);
+        }
+        Ok(None)
+    }
+}
+
+/// Retrieves all commit messages since the given tag (or all commits up to HEAD if `tag` is `None`).
+///
+/// Executes `git log <tag>..HEAD --format=%B%x1e` or `git log HEAD --format=%B%x1e`.
+/// Splits the output on ASCII 0x1E records, trims whitespace, and filters empty entries.
+///
+/// # Arguments
+///
+/// * `repo_root` - Path to the repository root directory.
+/// * `tag` - Optional starting tag reference.
+///
+/// # Example
+///
+/// ```no_run
+/// use std::path::Path;
+/// use git_claw::infra::git::git_get_commits_since;
+///
+/// # fn run() -> Result<(), git_claw::infra::error::GitError> {
+/// let commits = git_get_commits_since(Path::new("."), Some("v1.0.0"))?;
+/// for c in commits {
+///     println!("Commit: {}", c);
+/// }
+/// # Ok(())
+/// # }
+/// ```
+pub fn git_get_commits_since(
+    repo_root: &Path,
+    tag: Option<&str>,
+) -> Result<Vec<String>, GitError> {
+    let mut cmd = Command::new("git");
+    cmd.current_dir(repo_root);
+    let range = match tag {
+        Some(t) => format!("{}..HEAD", t),
+        None => "HEAD".to_string(),
+    };
+    cmd.args(["log", &range, "--format=%B%x1e"]);
+
+    let output = cmd.output().map_err(GitError::ProcessFailed)?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if stderr.contains("not a git repository") {
+            return Err(GitError::NotAGitRepository);
+        }
+        if stderr.contains("does not have any commits yet") {
+            return Ok(Vec::new());
+        }
+        return Err(GitError::CommandFailed {
+            command: format!("git log {}", range),
+            message: stderr.trim().to_string(),
+        });
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let commits = stdout
+        .split('\x1e')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    Ok(commits)
+}

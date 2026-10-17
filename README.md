@@ -285,17 +285,40 @@ This safely deletes the worktree folder, purges the `spike/test-vector-db` branc
 
 ---
 
-### 7. Production SemVer Release (`git claw tag`)
-When you are on a clean `main` branch and ready to cut a production release:
+### 7. Production SemVer Release & Changelog Generation (`git claw tag`)
+When you are on a clean `main` branch and ready to cut a production release, `git-claw` offers two release workflows:
+
+#### Automatic Conventional Commit Mode (Commitizen-style)
+Run `git claw tag` without arguments:
+
+```bash
+git claw tag
+```
+
+`git-claw` automatically:
+1. Inspects all commits since the previous Git tag (or since project inception if no tags exist).
+2. Calculates the next SemVer version based on Conventional Commits:
+   - **Major bump**: Commits with `!` (e.g. `feat!:`, `fix!:`) or `BREAKING CHANGE:` / `BREAKING-CHANGE:` footers.
+   - **Minor bump**: Feature commits (`feat:` or `feat(scope):`).
+   - **Patch bump**: Bug fixes (`fix:`), performance improvements (`perf:`), or maintenance chores.
+3. Automatically generates or updates `CHANGELOG.md` grouped under `## [<version>] - YYYY-MM-DD` with categorized release notes:
+   - `### Breaking Changes`
+   - `### Features`
+   - `### Bug Fixes`
+   - `### Performance Improvements`
+   - `### Other Changes`
+4. Synchronizes project manifests:
+   - **Rust**: `Cargo.toml` (and refreshes `Cargo.lock` via `cargo check` if present)
+   - **Python**: `pyproject.toml` or `project.toml` under `[project]` (PEP 621) or `[tool.poetry]` (and refreshes `uv.lock` via `uv lock` if present)
+5. Atomically commits modified files (`CHANGELOG.md`, manifests, lockfiles) as `chore: release <version>` and creates an annotated Git tag on `main`.
+
+#### Explicit Version Override
+To specify an explicit version tag directly, pass the version argument:
 
 ```bash
 git claw tag v1.2.0
 ```
-`git-claw` validates the SemVer format, ensures your working copy is clean, and automatically synchronizes the version in:
-- **Rust projects**: `Cargo.toml` (and refreshes `Cargo.lock` via `cargo check` if present)
-- **Python projects**: `pyproject.toml` or `project.toml` under `[project]` (PEP 621) or `[tool.poetry]` (and refreshes `uv.lock` via `uv lock` if present)
-
-It stages and commits the changed manifests as `chore: release <version>`, and creates an annotated Git tag on `main`. If the versions already match, file editing and committing are safely skipped.
+This validates the SemVer format, synchronizes manifests and lockfiles, commits as `chore: release <version>`, and creates the annotated release tag.
 
 ---
 

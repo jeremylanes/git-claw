@@ -178,7 +178,7 @@ fn main() {
         }
         Some(Commands::Tag { version }) => {
             if let Err(e) = workflow::tag_release(workflow::TagOptions {
-                version: &version,
+                version: version.as_deref(),
                 repo_root: None,
             }) {
                 cli::output::print_error(e);

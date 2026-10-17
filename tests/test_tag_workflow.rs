@@ -54,7 +54,7 @@ fn test_tag_release_clean_trunk() {
     let repo_path = repo_dir.path();
 
     tag_release(TagOptions {
-        version: "v1.0.0",
+        version: Some("v1.0.0"),
         repo_root: Some(repo_path),
     })
     .expect("tag release");
@@ -78,7 +78,7 @@ fn test_tag_release_dirty_trunk_fails() {
     fs::write(repo_path.join("README.md"), "dirty changes").expect("dirty write");
 
     let res = tag_release(TagOptions {
-        version: "v1.0.1",
+        version: Some("v1.0.1"),
         repo_root: Some(repo_path),
     });
     assert!(res.is_err());
@@ -90,7 +90,7 @@ fn test_tag_release_invalid_semver_fails() {
     let repo_path = repo_dir.path();
 
     let res = tag_release(TagOptions {
-        version: "invalid.version",
+        version: Some("invalid.version"),
         repo_root: Some(repo_path),
     });
     assert!(res.is_err());
@@ -148,7 +148,7 @@ edition = "2021"
     assert!(commit.status.success());
 
     tag_release(TagOptions {
-        version: "v0.3.0",
+        version: Some("v0.3.0"),
         repo_root: Some(repo_path),
     })
     .expect("tag release");
@@ -208,7 +208,7 @@ edition = "2021"
         .output();
 
     tag_release(TagOptions {
-        version: "v0.3.0",
+        version: Some("v0.3.0"),
         repo_root: Some(repo_path),
     })
     .expect("tag release");
@@ -315,7 +315,7 @@ description = "A sample python project"
         .output();
 
     tag_release(TagOptions {
-        version: "v0.2.0",
+        version: Some("v0.2.0"),
         repo_root: Some(repo_path),
     })
     .expect("tag release");
@@ -374,7 +374,7 @@ version = "1.0.0"
         .output();
 
     tag_release(TagOptions {
-        version: "1.1.0",
+        version: Some("1.1.0"),
         repo_root: Some(repo_path),
     })
     .expect("tag release");
@@ -419,7 +419,7 @@ version = "0.1.0"
         .output();
 
     tag_release(TagOptions {
-        version: "v0.2.0",
+        version: Some("v0.2.0"),
         repo_root: Some(repo_path),
     })
     .expect("tag release");
@@ -460,7 +460,7 @@ version = "0.2.0"
         .output();
 
     tag_release(TagOptions {
-        version: "v0.2.0",
+        version: Some("v0.2.0"),
         repo_root: Some(repo_path),
     })
     .expect("tag release");
@@ -486,4 +486,241 @@ version = "0.2.0"
         String::from_utf8_lossy(&tag_check.stdout).trim(),
         "v0.2.0"
     );
+}
+
+#[test]
+fn test_tag_release_auto_infer_minor_and_changelog() {
+    let repo_dir = setup_repo();
+    let repo_path = repo_dir.path();
+
+    // Create previous tag v0.2.0
+    let _ = std::process::Command::new("git")
+        .args(["tag", "-a", "v0.2.0", "-m", "Release v0.2.0"])
+        .current_dir(repo_path)
+        .output();
+
+    // Add a feature commit
+    fs::write(repo_path.join("feature.txt"), "new feature").expect("write file");
+    let _ = std::process::Command::new("git")
+        .args(["add", "feature.txt"])
+        .current_dir(repo_path)
+        .output();
+    let _ = std::process::Command::new("git")
+        .args(["commit", "-m", "feat(core): add conventional commit support"])
+        .current_dir(repo_path)
+        .output();
+
+    // Tag without version -> auto inferred
+    tag_release(TagOptions {
+        version: None,
+        repo_root: Some(repo_path),
+    })
+    .expect("tag release");
+
+    // Inferred minor bump: v0.2.0 -> v0.3.0
+    let tag_check = std::process::Command::new("git")
+        .args(["tag", "-l", "v0.3.0"])
+        .current_dir(repo_path)
+        .output()
+        .expect("check tag");
+    assert_eq!(String::from_utf8_lossy(&tag_check.stdout).trim(), "v0.3.0");
+
+    // Verify CHANGELOG.md was created
+    let changelog = fs::read_to_string(repo_path.join("CHANGELOG.md")).expect("read changelog");
+    assert!(changelog.contains("## [v0.3.0] - "));
+    assert!(changelog.contains("### Features"));
+    assert!(changelog.contains("- **core**: add conventional commit support"));
+
+    // Verify HEAD commit message
+    let log_msg = std::process::Command::new("git")
+        .args(["log", "-1", "--pretty=%s"])
+        .current_dir(repo_path)
+        .output()
+        .expect("git log");
+    assert_eq!(
+        String::from_utf8_lossy(&log_msg.stdout).trim(),
+        "chore: release v0.3.0"
+    );
+}
+
+#[test]
+fn test_tag_release_auto_infer_major_breaking() {
+    let repo_dir = setup_repo();
+    let repo_path = repo_dir.path();
+
+    let _ = std::process::Command::new("git")
+        .args(["tag", "-a", "v0.2.0", "-m", "Release v0.2.0"])
+        .current_dir(repo_path)
+        .output();
+
+    // Add a breaking change commit with !
+    fs::write(repo_path.join("breaking.txt"), "break").expect("write file");
+    let _ = std::process::Command::new("git")
+        .args(["add", "breaking.txt"])
+        .current_dir(repo_path)
+        .output();
+    let _ = std::process::Command::new("git")
+        .args(["commit", "-m", "fix!: drop deprecated API"])
+        .current_dir(repo_path)
+        .output();
+
+    tag_release(TagOptions {
+        version: None,
+        repo_root: Some(repo_path),
+    })
+    .expect("tag release");
+
+    // Major bump: v0.2.0 -> v1.0.0
+    let tag_check = std::process::Command::new("git")
+        .args(["tag", "-l", "v1.0.0"])
+        .current_dir(repo_path)
+        .output()
+        .expect("check tag");
+    assert_eq!(String::from_utf8_lossy(&tag_check.stdout).trim(), "v1.0.0");
+
+    let changelog = fs::read_to_string(repo_path.join("CHANGELOG.md")).expect("read changelog");
+    assert!(changelog.contains("## [v1.0.0] - "));
+    assert!(changelog.contains("### Breaking Changes"));
+    assert!(changelog.contains("- drop deprecated API"));
+}
+
+#[test]
+fn test_tag_release_auto_infer_patch() {
+    let repo_dir = setup_repo();
+    let repo_path = repo_dir.path();
+
+    let _ = std::process::Command::new("git")
+        .args(["tag", "-a", "v0.2.0", "-m", "Release v0.2.0"])
+        .current_dir(repo_path)
+        .output();
+
+    fs::write(repo_path.join("fix.txt"), "fix").expect("write file");
+    let _ = std::process::Command::new("git")
+        .args(["add", "fix.txt"])
+        .current_dir(repo_path)
+        .output();
+    let _ = std::process::Command::new("git")
+        .args(["commit", "-m", "fix: resolve memory leak"])
+        .current_dir(repo_path)
+        .output();
+
+    tag_release(TagOptions {
+        version: None,
+        repo_root: Some(repo_path),
+    })
+    .expect("tag release");
+
+    // Patch bump: v0.2.0 -> v0.2.1
+    let tag_check = std::process::Command::new("git")
+        .args(["tag", "-l", "v0.2.1"])
+        .current_dir(repo_path)
+        .output()
+        .expect("check tag");
+    assert_eq!(String::from_utf8_lossy(&tag_check.stdout).trim(), "v0.2.1");
+
+    let changelog = fs::read_to_string(repo_path.join("CHANGELOG.md")).expect("read changelog");
+    assert!(changelog.contains("## [v0.2.1] - "));
+    assert!(changelog.contains("### Bug Fixes"));
+    assert!(changelog.contains("- resolve memory leak"));
+}
+
+#[test]
+fn test_tag_release_auto_infer_no_previous_tags_fresh_repo() {
+    let repo_dir = setup_repo();
+    let repo_path = repo_dir.path();
+
+    let cargo_toml_content = r#"[package]
+name = "fresh-project"
+version = "0.1.0"
+edition = "2021"
+"#;
+    fs::write(repo_path.join("Cargo.toml"), cargo_toml_content).expect("write Cargo.toml");
+    let _ = std::process::Command::new("git")
+        .args(["add", "Cargo.toml"])
+        .current_dir(repo_path)
+        .output();
+    let _ = std::process::Command::new("git")
+        .args(["commit", "-m", "feat: initial feature set"])
+        .current_dir(repo_path)
+        .output();
+
+    tag_release(TagOptions {
+        version: None,
+        repo_root: Some(repo_path),
+    })
+    .expect("tag release");
+
+    // Fresh repo base 0.1.0 with feat -> bumped minor -> v0.2.0
+    let tag_check = std::process::Command::new("git")
+        .args(["tag", "-l", "v0.2.0"])
+        .current_dir(repo_path)
+        .output()
+        .expect("check tag");
+    assert_eq!(String::from_utf8_lossy(&tag_check.stdout).trim(), "v0.2.0");
+
+    let updated_cargo_toml =
+        fs::read_to_string(repo_path.join("Cargo.toml")).expect("read Cargo.toml");
+    assert!(updated_cargo_toml.contains("version = \"0.2.0\""));
+}
+
+#[test]
+fn test_tag_release_auto_infer_no_commits_fails() {
+    let repo_dir = setup_repo();
+    let repo_path = repo_dir.path();
+
+    let _ = std::process::Command::new("git")
+        .args(["tag", "-a", "v0.1.0", "-m", "Release v0.1.0"])
+        .current_dir(repo_path)
+        .output();
+
+    // No new commits since v0.1.0
+    let res = tag_release(TagOptions {
+        version: None,
+        repo_root: Some(repo_path),
+    });
+    assert!(res.is_err());
+    let err_msg = res.unwrap_err().to_string();
+    assert!(err_msg.contains("No commits found since last release tag"));
+}
+
+#[test]
+fn test_cli_tag_command_auto_e2e() {
+    let repo_dir = setup_repo();
+    let repo_path = repo_dir.path();
+
+    let _ = std::process::Command::new("git")
+        .args(["tag", "-a", "v0.2.0", "-m", "Release v0.2.0"])
+        .current_dir(repo_path)
+        .output();
+
+    fs::write(repo_path.join("code.txt"), "feature").expect("write file");
+    let _ = std::process::Command::new("git")
+        .args(["add", "code.txt"])
+        .current_dir(repo_path)
+        .output();
+    let _ = std::process::Command::new("git")
+        .args(["commit", "-m", "feat(api): expose health check"])
+        .current_dir(repo_path)
+        .output();
+
+    let mut cmd = Command::cargo_bin("git-claw").expect("binary");
+    cmd.current_dir(repo_path)
+        .arg("tag")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "Inferred bump: Minor -> version 'v0.3.0'",
+        ))
+        .stdout(predicate::str::contains("Updated CHANGELOG.md"))
+        .stdout(predicate::str::contains(
+            "Created annotated release tag 'v0.3.0'",
+        ));
+
+    // Verify tag exists
+    let check = std::process::Command::new("git")
+        .args(["tag", "-l", "v0.3.0"])
+        .current_dir(repo_path)
+        .output()
+        .expect("check tag");
+    assert_eq!(String::from_utf8_lossy(&check.stdout).trim(), "v0.3.0");
 }

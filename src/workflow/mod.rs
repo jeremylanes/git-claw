@@ -1,5 +1,6 @@
 //! Application Layer (workflow orchestration and command handlers).
 
+pub mod changelog;
 pub mod completion;
 pub mod error;
 pub mod finish;
@@ -13,6 +14,7 @@ pub mod spike;
 pub mod start;
 pub mod tag;
 
+pub use changelog::{current_date_ymd, generate_changelog_entry, update_changelog_file};
 pub use completion::{generate_completion, run_completion_workflow};
 pub use error::WorkflowError;
 pub use finish::{finish_worktree, FinishOptions};
