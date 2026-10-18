@@ -149,3 +149,93 @@ fn test_cd_unknown_worktree_fails() {
         .failure()
         .code(1);
 }
+
+#[test]
+fn test_cd_main_resolves_primary_repo_root() {
+    let (repo_dir, _wt_parent) = setup_repo();
+    let repo_path = repo_dir.path();
+    let canonical_root = repo_path.canonicalize().expect("canonicalize");
+
+    let resolved = cd_worktree(CdOptions {
+        name: Some("main"),
+        repo_root: Some(repo_path),
+    })
+    .expect("cd main");
+
+    assert_eq!(resolved, canonical_root);
+}
+
+#[test]
+fn test_cd_master_resolves_primary_repo_root() {
+    let (repo_dir, _wt_parent) = setup_repo();
+    let repo_path = repo_dir.path();
+    let canonical_root = repo_path.canonicalize().expect("canonicalize");
+
+    let resolved = cd_worktree(CdOptions {
+        name: Some("master"),
+        repo_root: Some(repo_path),
+    })
+    .expect("cd master");
+
+    assert_eq!(resolved, canonical_root);
+}
+
+#[test]
+fn test_cd_root_resolves_primary_repo_root() {
+    let (repo_dir, _wt_parent) = setup_repo();
+    let repo_path = repo_dir.path();
+    let canonical_root = repo_path.canonicalize().expect("canonicalize");
+
+    let resolved = cd_worktree(CdOptions {
+        name: Some("root"),
+        repo_root: Some(repo_path),
+    })
+    .expect("cd root");
+
+    assert_eq!(resolved, canonical_root);
+}
+
+#[test]
+fn test_cd_no_args_outside_worktree_resolves_primary_root() {
+    let (repo_dir, _wt_parent) = setup_repo();
+    let repo_path = repo_dir.path();
+    let canonical_root = repo_path.canonicalize().expect("canonicalize");
+
+    let resolved = cd_worktree(CdOptions {
+        name: None,
+        repo_root: Some(repo_path),
+    })
+    .expect("cd no args outside worktree");
+
+    assert_eq!(resolved, canonical_root);
+}
+
+#[test]
+fn test_cli_cd_main() {
+    let (repo_dir, _wt_parent) = setup_repo();
+    let repo_path = repo_dir.path();
+    let canonical_root = repo_path.canonicalize().expect("canonicalize");
+
+    let mut cmd = Command::cargo_bin("git-claw").expect("binary");
+    let assert = cmd
+        .current_dir(repo_path)
+        .args(["cd", "main"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8(assert.get_output().stdout.clone()).expect("utf8");
+    assert_eq!(stdout.trim(), canonical_root.to_string_lossy().trim());
+}
+
+#[test]
+fn test_cli_cd_no_args_outside_worktree() {
+    let (repo_dir, _wt_parent) = setup_repo();
+    let repo_path = repo_dir.path();
+    let canonical_root = repo_path.canonicalize().expect("canonicalize");
+
+    let mut cmd = Command::cargo_bin("git-claw").expect("binary");
+    let assert = cmd.current_dir(repo_path).args(["cd"]).assert().success();
+
+    let stdout = String::from_utf8(assert.get_output().stdout.clone()).expect("utf8");
+    assert_eq!(stdout.trim(), canonical_root.to_string_lossy().trim());
+}

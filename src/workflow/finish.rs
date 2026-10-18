@@ -172,6 +172,12 @@ pub fn finish_worktree(options: FinishOptions<'_>) -> Result<(), WorkflowError> 
     // 7. Run post_finish hook
     let _ = run_post_finish_hook(config.hooks.post_finish.as_deref(), &toplevel, &hook_env);
 
+    // Record target primary root for shell auto-cd integration
+    let _ = std::fs::write(
+        "/tmp/.git_claw_target_cd",
+        toplevel.to_string_lossy().as_bytes(),
+    );
+
     print_success(format!(
         "Worktree '{}' (Slot {}) successfully merged into '{}' and cleaned up",
         slot.name,

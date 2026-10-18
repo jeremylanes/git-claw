@@ -91,7 +91,7 @@ pub enum Commands {
     /// Output shell integration script for auto-cd navigation
     #[command(name = "shell-hook")]
     ShellHook {
-        /// Target shell (bash, zsh)
+        /// Target shell (bash, zsh, fish)
         #[arg(default_value = "bash")]
         shell: String,
     },

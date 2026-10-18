@@ -41,6 +41,12 @@ pub fn drop_spike(options: DropSpikeOptions<'_>) -> Result<(), WorkflowError> {
     registry.remove_by_id(slot.id);
     registry.save_atomic(&registry_path)?;
 
+    // Record target primary root for shell auto-cd integration
+    let _ = std::fs::write(
+        "/tmp/.git_claw_target_cd",
+        toplevel.to_string_lossy().as_bytes(),
+    );
+
     print_success(format!(
         "Spike worktree '{}' (Slot {}) and branch '{}' dropped successfully without merging",
         slot.name, slot.id, slot.branch

@@ -45,6 +45,15 @@ fn setup_repo() -> (tempfile::TempDir, tempfile::TempDir) {
         .output();
 
     fs::write(repo_path.join("README.md"), "# Test Shell Hook").expect("write readme");
+    let config = format!(
+        r#"
+[project]
+main_branch = "main"
+worktree_root = "{}"
+"#,
+        wt_parent.path().display()
+    );
+    fs::write(repo_path.join(".git-claw.toml"), config).expect("write config");
 
     let add = StdCommand::new("git")
         .args(["add", "."])
@@ -67,17 +76,6 @@ fn setup_repo() -> (tempfile::TempDir, tempfile::TempDir) {
 fn test_shell_hook_execution_in_bash() {
     let (repo_dir, wt_parent) = setup_repo();
     let repo_path = repo_dir.path();
-
-    // Configure .git-claw.toml to point to custom wt_parent
-    let config = format!(
-        r#"
-[project]
-main_branch = "main"
-worktree_root = "{}"
-"#,
-        wt_parent.path().display()
-    );
-    fs::write(repo_path.join(".git-claw.toml"), config).expect("write config");
 
     // Locate the built git-claw debug binary
     let bin_path = assert_cmd::cargo::cargo_bin("git-claw");
@@ -118,6 +116,216 @@ pwd
         stdout.contains(&expected_dest.display().to_string()),
         "expected stdout to contain navigated dir {}, got:\n{}",
         expected_dest.display(),
+        stdout
+    );
+}
+
+#[test]
+fn test_generate_shell_hook_fish_content() {
+    let script = generate_shell_hook("fish");
+    assert!(script.contains("function claw"));
+    assert!(script.contains("function git"));
+    assert!(script.contains("command git-claw cd"));
+    assert!(script.contains("test \"$argv[2]\" = \"start\""));
+    assert!(script.contains("test \"$argv[1]\" = \"finish\""));
+    assert!(script.contains("test \"$argv[2]\" = \"drop\""));
+    assert!(script.contains("main_dest"));
+    assert!(script.contains("not test -d \"$PWD\""));
+}
+
+#[test]
+fn test_generate_shell_hook_bash_auto_cd_finish() {
+    let script = generate_shell_hook("bash");
+    assert!(script.contains("claw()"));
+    assert!(script.contains("git()"));
+    assert!(script.contains("[ \"$1\" = \"finish\" ]"));
+    assert!(script.contains("[ \"$2\" = \"drop\" ]"));
+    assert!(script.contains(
+        "main_dest=\"$(command git-claw cd main 2>/dev/null || command git-claw cd 2>/dev/null)\""
+    ));
+    assert!(script.contains("[ ! -d \"$PWD\" ]"));
+}
+
+#[test]
+fn test_cli_shell_hook_fish_command() {
+    let mut cmd = Command::cargo_bin("git-claw").expect("binary exists");
+    cmd.args(["shell-hook", "fish"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("function claw"))
+        .stdout(predicates::str::contains("function git"));
+}
+
+#[test]
+fn test_shell_hook_finish_auto_cd_in_bash() {
+    let (repo_dir, wt_parent) = setup_repo();
+    let repo_path = repo_dir.path();
+    let canonical_root = repo_path.canonicalize().expect("canonicalize");
+
+    let bin_path = assert_cmd::cargo::cargo_bin("git-claw");
+    let bin_dir = bin_path.parent().expect("bin dir");
+
+    let hook_script = generate_shell_hook("bash");
+    let test_script = format!(
+        r#"
+export PATH="{}:$PATH"
+{}
+
+cd "{}"
+claw feature start finish-nav
+worktree_dir="$(pwd)"
+echo "WORKTREE_DIR: $worktree_dir"
+claw finish
+echo "FINAL_DIR: $(pwd)"
+"#,
+        bin_dir.display(),
+        hook_script,
+        repo_path.display()
+    );
+
+    let output = StdCommand::new("bash")
+        .args(["-c", &test_script])
+        .output()
+        .expect("run bash");
+
+    assert!(
+        output.status.success(),
+        "bash execution failed: stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let expected_wt = wt_parent.path().join("finish-nav");
+
+    assert!(
+        stdout.contains(&format!("WORKTREE_DIR: {}", expected_wt.display())),
+        "expected stdout to contain worktree dir {}, got:\n{}",
+        expected_wt.display(),
+        stdout
+    );
+
+    assert!(
+        stdout.contains(&format!("FINAL_DIR: {}", canonical_root.display())),
+        "expected stdout to contain final dir {}, got:\n{}",
+        canonical_root.display(),
+        stdout
+    );
+}
+
+#[test]
+fn test_shell_hook_finish_auto_cd_in_fish() {
+    if StdCommand::new("fish").arg("--version").output().is_err() {
+        return;
+    }
+
+    let (repo_dir, wt_parent) = setup_repo();
+    let repo_path = repo_dir.path();
+    let canonical_root = repo_path.canonicalize().expect("canonicalize");
+
+    let bin_path = assert_cmd::cargo::cargo_bin("git-claw");
+    let bin_dir = bin_path.parent().expect("bin dir");
+
+    let hook_script = generate_shell_hook("fish");
+    let test_script = format!(
+        r#"
+set -gx PATH "{}" $PATH
+{}
+
+cd "{}"
+claw feature start fish-nav
+echo "WORKTREE_DIR: " (pwd)
+claw finish
+echo "FINAL_DIR: " (pwd)
+"#,
+        bin_dir.display(),
+        hook_script,
+        repo_path.display()
+    );
+
+    let output = StdCommand::new("fish")
+        .args(["-c", &test_script])
+        .output()
+        .expect("run fish");
+
+    assert!(
+        output.status.success(),
+        "fish execution failed: stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let expected_wt = wt_parent.path().join("fish-nav");
+
+    assert!(
+        stdout.contains(&format!("WORKTREE_DIR:  {}", expected_wt.display())),
+        "expected stdout to contain worktree dir {}, got:\n{}",
+        expected_wt.display(),
+        stdout
+    );
+
+    assert!(
+        stdout.contains(&format!("FINAL_DIR:  {}", canonical_root.display())),
+        "expected stdout to contain final dir {}, got:\n{}",
+        canonical_root.display(),
+        stdout
+    );
+}
+
+#[test]
+fn test_shell_hook_git_claw_finish_with_name_in_fish() {
+    if StdCommand::new("fish").arg("--version").output().is_err() {
+        return;
+    }
+
+    let (repo_dir, wt_parent) = setup_repo();
+    let repo_path = repo_dir.path();
+    let canonical_root = repo_path.canonicalize().expect("canonicalize");
+
+    let bin_path = assert_cmd::cargo::cargo_bin("git-claw");
+    let bin_dir = bin_path.parent().expect("bin dir");
+
+    let hook_script = generate_shell_hook("fish");
+    let test_script = format!(
+        r#"
+set -gx PATH "{}" $PATH
+{}
+
+cd "{}"
+git claw feature start fish-name-nav
+echo "WORKTREE_DIR: " (pwd)
+git claw finish fish-name-nav
+echo "FINAL_DIR: " (pwd)
+"#,
+        bin_dir.display(),
+        hook_script,
+        repo_path.display()
+    );
+
+    let output = StdCommand::new("fish")
+        .args(["-c", &test_script])
+        .output()
+        .expect("run fish");
+
+    assert!(
+        output.status.success(),
+        "fish execution failed: stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let expected_wt = wt_parent.path().join("fish-name-nav");
+
+    assert!(
+        stdout.contains(&format!("WORKTREE_DIR:  {}", expected_wt.display())),
+        "expected stdout to contain worktree dir {}, got:\n{}",
+        expected_wt.display(),
+        stdout
+    );
+
+    assert!(
+        stdout.contains(&format!("FINAL_DIR:  {}", canonical_root.display())),
+        "expected stdout to contain final dir {}, got:\n{}",
+        canonical_root.display(),
         stdout
     );
 }
