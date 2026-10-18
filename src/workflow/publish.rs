@@ -7,7 +7,7 @@ use crate::core::branch::BranchType;
 use crate::core::config::Config;
 use crate::infra::git::{
     git_branch_exists, git_get_remotes, git_push_upstream, resolve_git_common_dir,
-    resolve_repo_name, resolve_toplevel,
+    resolve_primary_repo_root, resolve_repo_name,
 };
 use crate::infra::registry::{SlotRecord, SlotRegistry};
 use crate::workflow::error::WorkflowError;
@@ -99,7 +99,7 @@ pub fn resolve_active_worktree_slot<'a>(
 /// # }
 /// ```
 pub fn publish_worktree(options: PublishOptions<'_>) -> Result<(), WorkflowError> {
-    let toplevel = resolve_toplevel(options.repo_root)?;
+    let toplevel = resolve_primary_repo_root(options.repo_root)?;
     let common_dir = resolve_git_common_dir(Some(&toplevel))?;
     let repo_name = resolve_repo_name(&toplevel);
 

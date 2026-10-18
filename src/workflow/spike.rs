@@ -1,7 +1,7 @@
 //! Spike worktree drop and abandonment orchestration.
 
 use crate::cli::output::print_success;
-use crate::infra::git::{resolve_git_common_dir, resolve_toplevel};
+use crate::infra::git::{resolve_git_common_dir, resolve_primary_repo_root};
 use crate::infra::lock::SlotLock;
 use crate::infra::registry::SlotRegistry;
 use crate::infra::worktree::{delete_branch, remove_worktree};
@@ -15,7 +15,7 @@ pub struct DropSpikeOptions<'a> {
 
 /// Drops a spike worktree without merging, force-removes the worktree and branch, and frees the slot.
 pub fn drop_spike(options: DropSpikeOptions<'_>) -> Result<(), WorkflowError> {
-    let toplevel = resolve_toplevel(options.repo_root)?;
+    let toplevel = resolve_primary_repo_root(options.repo_root)?;
     let common_dir = resolve_git_common_dir(Some(&toplevel))?;
 
     let registry_path = common_dir.join("claw/slots.json");

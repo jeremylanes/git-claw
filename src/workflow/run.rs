@@ -1,6 +1,6 @@
 //! Contextual command runner with environment injection.
 
-use crate::infra::git::{resolve_git_common_dir, resolve_toplevel};
+use crate::infra::git::{resolve_git_common_dir, resolve_primary_repo_root};
 use crate::infra::registry::SlotRegistry;
 use crate::workflow::error::WorkflowError;
 use std::collections::BTreeMap;
@@ -33,7 +33,7 @@ pub fn parse_env_file(path: &Path) -> BTreeMap<String, String> {
 
 /// Executes a command in the worktree directory with .env.worktree injected.
 pub fn run_command(options: RunOptions) -> Result<i32, WorkflowError> {
-    let toplevel = resolve_toplevel(options.repo_root.as_deref())?;
+    let toplevel = resolve_primary_repo_root(options.repo_root.as_deref())?;
     let common_dir = resolve_git_common_dir(Some(&toplevel))?;
 
     let registry_path = common_dir.join("claw/slots.json");

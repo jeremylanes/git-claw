@@ -64,6 +64,43 @@ pub fn resolve_toplevel(repo_root: Option<&Path>) -> Result<PathBuf, GitError> {
     Ok(path.canonicalize().unwrap_or(path))
 }
 
+/// Resolves the primary repository root directory even when invoked from inside a linked worktree.
+///
+/// In standard Git repositories and linked worktrees, `git rev-parse --git-common-dir` points
+/// to `<primary_root>/.git`. If the common directory ends in `.git`, its parent directory is
+/// returned as the primary repository root. Otherwise, it falls back cleanly to `resolve_toplevel(repo_root)`.
+///
+/// # Parameters
+///
+/// * `repo_root` - Optional path to run Git resolution from.
+///
+/// # Returns
+///
+/// Returns `Ok(PathBuf)` containing the canonical path to the primary repository root,
+/// or `Err(GitError)` if resolution fails or the path is not a Git repository.
+///
+/// # Example
+///
+/// ```no_run
+/// use std::path::Path;
+/// use git_claw::infra::git::resolve_primary_repo_root;
+///
+/// # fn run() -> Result<(), git_claw::infra::error::GitError> {
+/// let root = resolve_primary_repo_root(Some(Path::new(".")))?;
+/// println!("Primary repository root: {:?}", root);
+/// # Ok(())
+/// # }
+/// ```
+pub fn resolve_primary_repo_root(repo_root: Option<&Path>) -> Result<PathBuf, GitError> {
+    let common_dir = resolve_git_common_dir(repo_root)?;
+    if common_dir.file_name().map(|n| n == ".git").unwrap_or(false) {
+        if let Some(parent) = common_dir.parent() {
+            return Ok(parent.to_path_buf());
+        }
+    }
+    resolve_toplevel(repo_root)
+}
+
 /// Extracts repository name from top-level directory.
 pub fn resolve_repo_name(toplevel: &Path) -> String {
     toplevel

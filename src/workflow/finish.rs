@@ -4,7 +4,7 @@ use crate::cli::output::{print_success, print_warning};
 use crate::core::config::Config;
 use crate::infra::git::{
     git_checkout, git_delete_remote_branch, git_get_remotes, git_is_clean, git_merge,
-    git_remote_branch_exists, resolve_git_common_dir, resolve_repo_name, resolve_toplevel,
+    git_remote_branch_exists, resolve_git_common_dir, resolve_primary_repo_root, resolve_repo_name,
 };
 use crate::infra::hook::{run_post_finish_hook, run_pre_finish_hook};
 use crate::infra::lock::SlotLock;
@@ -57,7 +57,7 @@ pub struct FinishOptions<'a> {
 /// # }
 /// ```
 pub fn finish_worktree(options: FinishOptions<'_>) -> Result<(), WorkflowError> {
-    let toplevel = resolve_toplevel(options.repo_root)?;
+    let toplevel = resolve_primary_repo_root(options.repo_root)?;
     let common_dir = resolve_git_common_dir(Some(&toplevel))?;
     let repo_name = resolve_repo_name(&toplevel);
 
@@ -74,11 +74,15 @@ pub fn finish_worktree(options: FinishOptions<'_>) -> Result<(), WorkflowError> 
     let target_name = match options.name {
         Some(n) => n.to_string(),
         None => {
-            let cwd = std::env::current_dir().unwrap_or_default();
+            let cwd = options
+                .repo_root
+                .map(|p| p.to_path_buf())
+                .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
             let canonical_cwd = cwd.canonicalize().unwrap_or(cwd);
             let found = registry.slots.iter().find(|s| {
                 let p = PathBuf::from(&s.path);
-                p.canonicalize().unwrap_or(p) == canonical_cwd
+                let canonical_p = p.canonicalize().unwrap_or(p);
+                canonical_cwd == canonical_p || canonical_cwd.starts_with(&canonical_p)
             });
 
             match found {

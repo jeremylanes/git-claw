@@ -10,7 +10,7 @@ use crate::infra::env_file::{
     copy_and_merge_untracked_files, sanitize_compose_project_name, write_env_worktree,
 };
 use crate::infra::fs::link_shared_cache_directories;
-use crate::infra::git::{resolve_git_common_dir, resolve_repo_name, resolve_toplevel};
+use crate::infra::git::{resolve_git_common_dir, resolve_primary_repo_root, resolve_repo_name};
 use crate::infra::hook::run_post_start_hook;
 use crate::infra::lock::SlotLock;
 use crate::infra::registry::{SlotRecord, SlotRegistry};
@@ -29,7 +29,7 @@ pub struct StartOptions<'a> {
 
 /// Orchestrates starting a new worktree for `branch_type` and `name`.
 pub fn start_worktree(options: StartOptions<'_>) -> Result<u32, WorkflowError> {
-    let toplevel = resolve_toplevel(options.repo_root)?;
+    let toplevel = resolve_primary_repo_root(options.repo_root)?;
     let common_dir = resolve_git_common_dir(Some(&toplevel))?;
     let repo_name = resolve_repo_name(&toplevel);
 

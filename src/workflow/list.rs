@@ -4,7 +4,7 @@ use crate::cli::output::{print_worktree_table, WorktreeRow};
 use crate::core::config::Config;
 use crate::core::port::calculate_effective_ports;
 use crate::infra::git::{
-    git_head_commit, resolve_git_common_dir, resolve_repo_name, resolve_toplevel,
+    git_head_commit, resolve_git_common_dir, resolve_primary_repo_root, resolve_repo_name,
 };
 use crate::infra::lock::SlotLock;
 use crate::infra::registry::SlotRegistry;
@@ -13,7 +13,7 @@ use std::path::Path;
 
 /// Inspects active worktree slots, runs auto-GC, and renders the status dashboard table.
 pub fn list_worktrees(repo_root: Option<&Path>) -> Result<(), WorkflowError> {
-    let toplevel = resolve_toplevel(repo_root)?;
+    let toplevel = resolve_primary_repo_root(repo_root)?;
     let common_dir = resolve_git_common_dir(Some(&toplevel))?;
     let repo_name = resolve_repo_name(&toplevel);
 

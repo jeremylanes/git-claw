@@ -1,6 +1,6 @@
 //! Navigation and editor integration workflows (`git claw cd` and `git claw open`).
 
-use crate::infra::git::{resolve_git_common_dir, resolve_toplevel};
+use crate::infra::git::{resolve_git_common_dir, resolve_primary_repo_root};
 use crate::infra::registry::SlotRegistry;
 use crate::workflow::error::WorkflowError;
 use std::path::{Path, PathBuf};
@@ -22,7 +22,7 @@ fn resolve_target_worktree_path(
     name: Option<&str>,
     repo_root: Option<&Path>,
 ) -> Result<PathBuf, WorkflowError> {
-    let toplevel = resolve_toplevel(repo_root)?;
+    let toplevel = resolve_primary_repo_root(repo_root)?;
     let common_dir = resolve_git_common_dir(Some(&toplevel))?;
 
     let registry_path = common_dir.join("claw/slots.json");

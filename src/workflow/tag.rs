@@ -6,7 +6,7 @@ use crate::core::conventional::{determine_bump, parse_conventional_commit, Conve
 use crate::core::semver::{parse_semver, validate_semver, SemVer};
 use crate::infra::git::{
     git_commit_files, git_create_annotated_tag, git_get_commits_since, git_get_latest_tag,
-    git_is_clean, resolve_repo_name, resolve_toplevel,
+    git_is_clean, resolve_primary_repo_root, resolve_repo_name,
 };
 use crate::workflow::changelog::{
     current_date_ymd, generate_changelog_entry, update_changelog_file,
@@ -255,7 +255,7 @@ fn read_base_version_from_manifests(repo_root: &Path) -> Option<SemVer> {
 /// # }
 /// ```
 pub fn tag_release(options: TagOptions<'_>) -> Result<(), WorkflowError> {
-    let toplevel = resolve_toplevel(options.repo_root)?;
+    let toplevel = resolve_primary_repo_root(options.repo_root)?;
     let repo_name = resolve_repo_name(&toplevel);
 
     let config_path = toplevel.join(".git-claw.toml");

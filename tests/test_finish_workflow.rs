@@ -535,3 +535,89 @@ fn test_finish_remote_unreachable_is_non_fatal() {
     assert!(!wt_path.exists());
     assert!(repo_path.join("file.txt").exists());
 }
+
+#[test]
+fn test_finish_worktree_from_inside_worktree() {
+    let (repo_dir, wt_parent) = setup_repo();
+    let repo_path = repo_dir.path();
+
+    start_worktree(StartOptions {
+        branch_type: BranchType::Feature,
+        name: "updating",
+        isolated: false,
+        repo_root: Some(repo_path),
+    })
+    .expect("start worktree");
+
+    let wt_path = wt_parent.path().join("updating");
+    assert!(wt_path.exists());
+
+    fs::write(wt_path.join("updating.txt"), "updating content").expect("write updating.txt");
+    let add = std::process::Command::new("git")
+        .args(["add", "updating.txt"])
+        .current_dir(&wt_path)
+        .output()
+        .expect("git add in wt");
+    assert!(add.status.success());
+    let commit = std::process::Command::new("git")
+        .args(["commit", "-m", "Updating feature commit"])
+        .current_dir(&wt_path)
+        .output()
+        .expect("git commit in wt");
+    assert!(commit.status.success());
+
+    let res = finish_worktree(FinishOptions {
+        name: Some("updating"),
+        repo_root: Some(&wt_path),
+        ..Default::default()
+    });
+    assert!(res.is_ok(), "finish_worktree failed: {:?}", res);
+    assert!(!wt_path.exists(), "worktree path should be removed");
+    assert!(
+        repo_path.join("updating.txt").exists(),
+        "merged file should exist in primary repo"
+    );
+}
+
+#[test]
+fn test_finish_worktree_from_inside_worktree_inferred_name() {
+    let (repo_dir, wt_parent) = setup_repo();
+    let repo_path = repo_dir.path();
+
+    start_worktree(StartOptions {
+        branch_type: BranchType::Feature,
+        name: "inferred-feat",
+        isolated: false,
+        repo_root: Some(repo_path),
+    })
+    .expect("start worktree");
+
+    let wt_path = wt_parent.path().join("inferred-feat");
+    assert!(wt_path.exists());
+
+    fs::write(wt_path.join("inferred.txt"), "inferred content").expect("write inferred.txt");
+    let add = std::process::Command::new("git")
+        .args(["add", "inferred.txt"])
+        .current_dir(&wt_path)
+        .output()
+        .expect("git add in wt");
+    assert!(add.status.success());
+    let commit = std::process::Command::new("git")
+        .args(["commit", "-m", "Inferred feature commit"])
+        .current_dir(&wt_path)
+        .output()
+        .expect("git commit in wt");
+    assert!(commit.status.success());
+
+    let res = finish_worktree(FinishOptions {
+        name: None,
+        repo_root: Some(&wt_path),
+        ..Default::default()
+    });
+    assert!(res.is_ok(), "finish_worktree failed: {:?}", res);
+    assert!(!wt_path.exists(), "worktree path should be removed");
+    assert!(
+        repo_path.join("inferred.txt").exists(),
+        "merged file should exist in primary repo"
+    );
+}
