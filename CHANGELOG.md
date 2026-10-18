@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.4.1] - 2026-10-18
+
+### Other Changes
+
+- **shell**: tolerate macOS symlinked temp directories in shell hook assertions
+
 ## [v0.4.0] - 2026-10-18
 
 ### Features
