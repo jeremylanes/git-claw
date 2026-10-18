@@ -114,16 +114,21 @@ echo "AFTER_CD: $(pwd)"
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let expected_dest = wt_parent.path().join("auto-nav-cd");
+    let canonical_dest = expected_dest
+        .canonicalize()
+        .unwrap_or_else(|_| expected_dest.clone());
 
     // Verify without --cd shell remains in repo_path, and with --cd navigates to expected_dest
     assert!(
-        stdout.contains(&format!("AFTER_NO_CD: {}", canonical_root.display())),
+        stdout.contains(&format!("AFTER_NO_CD: {}", canonical_root.display()))
+            || stdout.contains(&format!("AFTER_NO_CD: {}", repo_path.display())),
         "expected stdout without --cd to remain in repo dir {}, got:\n{}",
-        canonical_root.display(),
+        repo_path.display(),
         stdout
     );
     assert!(
-        stdout.contains(&format!("AFTER_CD: {}", expected_dest.display())),
+        stdout.contains(&format!("AFTER_CD: {}", expected_dest.display()))
+            || stdout.contains(&format!("AFTER_CD: {}", canonical_dest.display())),
         "expected stdout with --cd to contain navigated dir {}, got:\n{}",
         expected_dest.display(),
         stdout
@@ -207,16 +212,21 @@ echo "FINAL_DIR: $(pwd)"
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let expected_wt = wt_parent.path().join("finish-nav");
+    let canonical_wt = expected_wt
+        .canonicalize()
+        .unwrap_or_else(|_| expected_wt.clone());
 
     assert!(
-        stdout.contains(&format!("WORKTREE_DIR: {}", expected_wt.display())),
+        stdout.contains(&format!("WORKTREE_DIR: {}", expected_wt.display()))
+            || stdout.contains(&format!("WORKTREE_DIR: {}", canonical_wt.display())),
         "expected stdout to contain worktree dir {}, got:\n{}",
         expected_wt.display(),
         stdout
     );
 
     assert!(
-        stdout.contains(&format!("FINAL_DIR: {}", canonical_root.display())),
+        stdout.contains(&format!("FINAL_DIR: {}", canonical_root.display()))
+            || stdout.contains(&format!("FINAL_DIR: {}", repo_path.display())),
         "expected stdout to contain final dir {}, got:\n{}",
         canonical_root.display(),
         stdout
@@ -266,16 +276,21 @@ echo "FINAL_DIR: " (pwd)
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let expected_wt = wt_parent.path().join("fish-nav");
+    let canonical_wt = expected_wt
+        .canonicalize()
+        .unwrap_or_else(|_| expected_wt.clone());
 
     assert!(
-        stdout.contains(&format!("WORKTREE_DIR:  {}", expected_wt.display())),
+        stdout.contains(&format!("WORKTREE_DIR:  {}", expected_wt.display()))
+            || stdout.contains(&format!("WORKTREE_DIR:  {}", canonical_wt.display())),
         "expected stdout to contain worktree dir {}, got:\n{}",
         expected_wt.display(),
         stdout
     );
 
     assert!(
-        stdout.contains(&format!("FINAL_DIR:  {}", canonical_root.display())),
+        stdout.contains(&format!("FINAL_DIR:  {}", canonical_root.display()))
+            || stdout.contains(&format!("FINAL_DIR:  {}", repo_path.display())),
         "expected stdout to contain final dir {}, got:\n{}",
         canonical_root.display(),
         stdout
@@ -325,16 +340,21 @@ echo "FINAL_DIR: " (pwd)
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let expected_wt = wt_parent.path().join("fish-name-nav");
+    let canonical_wt = expected_wt
+        .canonicalize()
+        .unwrap_or_else(|_| expected_wt.clone());
 
     assert!(
-        stdout.contains(&format!("WORKTREE_DIR:  {}", expected_wt.display())),
+        stdout.contains(&format!("WORKTREE_DIR:  {}", expected_wt.display()))
+            || stdout.contains(&format!("WORKTREE_DIR:  {}", canonical_wt.display())),
         "expected stdout to contain worktree dir {}, got:\n{}",
         expected_wt.display(),
         stdout
     );
 
     assert!(
-        stdout.contains(&format!("FINAL_DIR:  {}", canonical_root.display())),
+        stdout.contains(&format!("FINAL_DIR:  {}", canonical_root.display()))
+            || stdout.contains(&format!("FINAL_DIR:  {}", repo_path.display())),
         "expected stdout to contain final dir {}, got:\n{}",
         canonical_root.display(),
         stdout
@@ -384,15 +404,20 @@ echo "AFTER_CD: " (pwd)
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let expected_dest = wt_parent.path().join("fish-with-cd");
+    let canonical_dest = expected_dest
+        .canonicalize()
+        .unwrap_or_else(|_| expected_dest.clone());
 
     assert!(
-        stdout.contains(&format!("AFTER_NO_CD:  {}", canonical_root.display())),
+        stdout.contains(&format!("AFTER_NO_CD:  {}", canonical_root.display()))
+            || stdout.contains(&format!("AFTER_NO_CD:  {}", repo_path.display())),
         "expected fish without --cd to remain in repo dir {}, got:\n{}",
-        canonical_root.display(),
+        repo_path.display(),
         stdout
     );
     assert!(
-        stdout.contains(&format!("AFTER_CD:  {}", expected_dest.display())),
+        stdout.contains(&format!("AFTER_CD:  {}", expected_dest.display()))
+            || stdout.contains(&format!("AFTER_CD:  {}", canonical_dest.display())),
         "expected fish with --cd to contain navigated dir {}, got:\n{}",
         expected_dest.display(),
         stdout
