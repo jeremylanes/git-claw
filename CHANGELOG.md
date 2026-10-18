@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.5.0] - 2026-10-18
+
+### Features
+
+- **env**: add automatic environment detection and propagation for pyenv and uv
+
 ## [v0.4.1] - 2026-10-18
 
 ### Other Changes
