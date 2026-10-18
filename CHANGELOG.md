@@ -1,5 +1,16 @@
 # Changelog
 
+## [v0.4.0] - 2026-10-18
+
+### Features
+
+- **cli**: make worktree start navigation opt-in via --cd flag
+- finish feature on his worktree
+
+### Bug Fixes
+
+- **shell**: harden fish auto-cd integration and fallback for deleted worktrees
+
 ## [v0.3.3] - 2026-10-17
 
 ### Other Changes
