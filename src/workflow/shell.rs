@@ -33,6 +33,7 @@ pub struct ShellHookOptions<'a> {
 /// let script = generate_posix_hook();
 /// assert!(script.contains("claw()"));
 /// assert!(script.contains("main_dest"));
+/// assert!(script.contains("should_cd"));
 /// ```
 pub fn generate_posix_hook() -> String {
     r#"# git-claw shell integration for bash and zsh
@@ -50,15 +51,17 @@ claw() {
             cd "$dest" || return $?
         fi
     elif [ "$2" = "start" ] && { [ "$1" = "feature" ] || [ "$1" = "bugfix" ] || [ "$1" = "hotfix" ] || [ "$1" = "spike" ]; }; then
-        local target_name="$3"
+        local target_name=""
+        local should_cd=0
         for arg in "$@"; do
             case "$arg" in
+                --cd) should_cd=1 ;;
                 feature|bugfix|hotfix|spike|start|--*) ;;
-                *) target_name="$arg"; break ;;
+                *) [ -z "$target_name" ] && target_name="$arg" ;;
             esac
         done
         command git-claw "$@" || return $?
-        if [ -n "$target_name" ]; then
+        if [ $should_cd -eq 1 ] && [ -n "$target_name" ]; then
             local dest
             dest="$(command git-claw cd "$target_name")" || return $?
             if [ -n "$dest" ]; then
@@ -110,6 +113,7 @@ git() {
 /// assert!(script.contains("function claw"));
 /// assert!(script.contains("function git"));
 /// assert!(script.contains("main_dest"));
+/// assert!(script.contains("should_cd"));
 /// ```
 pub fn generate_fish_hook() -> String {
     r#"# git-claw shell integration for fish
@@ -133,17 +137,21 @@ function claw
         end
     else if test (count $argv) -ge 2; and test "$argv[2]" = "start"; and contains -- "$argv[1]" feature bugfix hotfix spike
         set -l target_name
+        set -l should_cd 0
         for arg in $argv
             switch $arg
+                case "--cd"
+                    set should_cd 1
                 case feature bugfix hotfix spike start "--*"
                 case "*"
-                    set target_name $arg
-                    break
+                    if test -z "$target_name"
+                        set target_name $arg
+                    end
             end
         end
         command git-claw $argv
         set -l ret $status
-        if test $ret -eq 0; and test -n "$target_name"
+        if test $ret -eq 0; and test $should_cd -eq 1; and test -n "$target_name"
             set -l dest (command git-claw cd $target_name)
             if test $status -eq 0; and test -n "$dest"
                 builtin cd "$dest"

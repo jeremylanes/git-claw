@@ -11,7 +11,12 @@ fn main() {
 
     match cli.command {
         Some(Commands::Feature {
-            action: WorktreeAction::Start { name, isolated },
+            action:
+                WorktreeAction::Start {
+                    name,
+                    isolated,
+                    cd: _,
+                },
         }) => {
             if let Err(e) = workflow::start_worktree(StartOptions {
                 branch_type: BranchType::Feature,
@@ -37,7 +42,12 @@ fn main() {
             }
         }
         Some(Commands::Bugfix {
-            action: WorktreeAction::Start { name, isolated },
+            action:
+                WorktreeAction::Start {
+                    name,
+                    isolated,
+                    cd: _,
+                },
         }) => {
             if let Err(e) = workflow::start_worktree(StartOptions {
                 branch_type: BranchType::Bugfix,
@@ -63,7 +73,12 @@ fn main() {
             }
         }
         Some(Commands::Hotfix {
-            action: WorktreeAction::Start { name, isolated },
+            action:
+                WorktreeAction::Start {
+                    name,
+                    isolated,
+                    cd: _,
+                },
         }) => {
             if let Err(e) = workflow::start_worktree(StartOptions {
                 branch_type: BranchType::Hotfix,
@@ -89,7 +104,12 @@ fn main() {
             }
         }
         Some(Commands::Spike {
-            action: SpikeAction::Start { name, isolated },
+            action:
+                SpikeAction::Start {
+                    name,
+                    isolated,
+                    cd: _,
+                },
         }) => {
             if let Err(e) = workflow::start_worktree(StartOptions {
                 branch_type: BranchType::Spike,

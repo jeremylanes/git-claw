@@ -113,6 +113,9 @@ pub enum WorktreeAction {
         /// Skip shared cache directory symlinking
         #[arg(long)]
         isolated: bool,
+        /// Automatically navigate (cd) to the worktree directory after creation
+        #[arg(long)]
+        cd: bool,
     },
     /// Publish the worktree branch to remote with upstream tracking
     Publish {
@@ -133,6 +136,9 @@ pub enum SpikeAction {
         /// Skip shared cache directory symlinking
         #[arg(long)]
         isolated: bool,
+        /// Automatically navigate (cd) to the worktree directory after creation
+        #[arg(long)]
+        cd: bool,
     },
     /// Drop a spike worktree without merging
     Drop {

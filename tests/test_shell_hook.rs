@@ -11,6 +11,7 @@ fn test_generate_shell_hook_content() {
     assert!(script.contains("git()"));
     assert!(script.contains("command git-claw cd"));
     assert!(script.contains("cd \"$dest\""));
+    assert!(script.contains("should_cd"));
 }
 
 #[test]
@@ -76,6 +77,7 @@ worktree_root = "{}"
 fn test_shell_hook_execution_in_bash() {
     let (repo_dir, wt_parent) = setup_repo();
     let repo_path = repo_dir.path();
+    let canonical_root = repo_path.canonicalize().expect("canonicalize");
 
     // Locate the built git-claw debug binary
     let bin_path = assert_cmd::cargo::cargo_bin("git-claw");
@@ -90,7 +92,9 @@ export PATH="{}:$PATH"
 
 cd "{}"
 claw feature start auto-nav
-pwd
+echo "AFTER_NO_CD: $(pwd)"
+claw feature start auto-nav-cd --cd
+echo "AFTER_CD: $(pwd)"
 "#,
         bin_dir.display(),
         hook_script,
@@ -109,12 +113,18 @@ pwd
     );
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let expected_dest = wt_parent.path().join("auto-nav");
+    let expected_dest = wt_parent.path().join("auto-nav-cd");
 
-    // Verify the bash shell actually navigated (pwd output matches expected_dest)
+    // Verify without --cd shell remains in repo_path, and with --cd navigates to expected_dest
     assert!(
-        stdout.contains(&expected_dest.display().to_string()),
-        "expected stdout to contain navigated dir {}, got:\n{}",
+        stdout.contains(&format!("AFTER_NO_CD: {}", canonical_root.display())),
+        "expected stdout without --cd to remain in repo dir {}, got:\n{}",
+        canonical_root.display(),
+        stdout
+    );
+    assert!(
+        stdout.contains(&format!("AFTER_CD: {}", expected_dest.display())),
+        "expected stdout with --cd to contain navigated dir {}, got:\n{}",
         expected_dest.display(),
         stdout
     );
@@ -131,6 +141,7 @@ fn test_generate_shell_hook_fish_content() {
     assert!(script.contains("test \"$argv[2]\" = \"drop\""));
     assert!(script.contains("main_dest"));
     assert!(script.contains("not test -d \"$PWD\""));
+    assert!(script.contains("should_cd"));
 }
 
 #[test]
@@ -172,7 +183,7 @@ export PATH="{}:$PATH"
 {}
 
 cd "{}"
-claw feature start finish-nav
+claw feature start finish-nav --cd
 worktree_dir="$(pwd)"
 echo "WORKTREE_DIR: $worktree_dir"
 claw finish
@@ -232,7 +243,7 @@ set -gx PATH "{}" $PATH
 {}
 
 cd "{}"
-claw feature start fish-nav
+claw feature start fish-nav --cd
 echo "WORKTREE_DIR: " (pwd)
 claw finish
 echo "FINAL_DIR: " (pwd)
@@ -291,7 +302,7 @@ set -gx PATH "{}" $PATH
 {}
 
 cd "{}"
-git claw feature start fish-name-nav
+git claw feature start fish-name-nav --cd
 echo "WORKTREE_DIR: " (pwd)
 git claw finish fish-name-nav
 echo "FINAL_DIR: " (pwd)
@@ -326,6 +337,64 @@ echo "FINAL_DIR: " (pwd)
         stdout.contains(&format!("FINAL_DIR:  {}", canonical_root.display())),
         "expected stdout to contain final dir {}, got:\n{}",
         canonical_root.display(),
+        stdout
+    );
+}
+
+#[test]
+fn test_shell_hook_execution_in_fish() {
+    if StdCommand::new("fish").arg("--version").output().is_err() {
+        return;
+    }
+
+    let (repo_dir, wt_parent) = setup_repo();
+    let repo_path = repo_dir.path();
+    let canonical_root = repo_path.canonicalize().expect("canonicalize");
+
+    let bin_path = assert_cmd::cargo::cargo_bin("git-claw");
+    let bin_dir = bin_path.parent().expect("bin dir");
+
+    let hook_script = generate_shell_hook("fish");
+    let test_script = format!(
+        r#"
+set -gx PATH "{}" $PATH
+{}
+
+cd "{}"
+claw feature start fish-no-cd
+echo "AFTER_NO_CD: " (pwd)
+claw feature start fish-with-cd --cd
+echo "AFTER_CD: " (pwd)
+"#,
+        bin_dir.display(),
+        hook_script,
+        repo_path.display()
+    );
+
+    let output = StdCommand::new("fish")
+        .args(["-c", &test_script])
+        .output()
+        .expect("run fish");
+
+    assert!(
+        output.status.success(),
+        "fish execution failed: stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let expected_dest = wt_parent.path().join("fish-with-cd");
+
+    assert!(
+        stdout.contains(&format!("AFTER_NO_CD:  {}", canonical_root.display())),
+        "expected fish without --cd to remain in repo dir {}, got:\n{}",
+        canonical_root.display(),
+        stdout
+    );
+    assert!(
+        stdout.contains(&format!("AFTER_CD:  {}", expected_dest.display())),
+        "expected fish with --cd to contain navigated dir {}, got:\n{}",
+        expected_dest.display(),
         stdout
     );
 }

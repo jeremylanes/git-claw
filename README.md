@@ -85,18 +85,19 @@ git claw finish auth-flow
 |---|---|
 | `git claw init [-y]` | Initialize or update repository `.git-claw.toml` configuration |
 | `git claw list` | List all active worktrees, assigned slots, and computed ports |
-| `git claw feature start <name>` | Create and checkout `feature/<name>` in an isolated worktree |
-| `git claw bugfix start <name>` | Create and checkout `bugfix/<name>` in an isolated worktree |
-| `git claw hotfix start <name>` | Create and checkout `hotfix/<name>` in an isolated worktree |
-| `git claw spike start <name>` | Create a disposable experiment worktree |
-| `git claw spike drop <name>` | Delete a spike worktree and branch without merging |
+| `git claw feature start <name> [--cd]` | Create and checkout `feature/<name>` in an isolated worktree (use `--cd` to navigate into it) |
+| `git claw bugfix start <name> [--cd]` | Create and checkout `bugfix/<name>` in an isolated worktree (use `--cd` to navigate into it) |
+| `git claw hotfix start <name> [--cd]` | Create and checkout `hotfix/<name>` in an isolated worktree (use `--cd` to navigate into it) |
+| `git claw spike start <name> [--cd]` | Create a disposable experiment worktree (use `--cd` to navigate into it) |
+| `git claw spike drop <name>` | Delete a spike worktree and branch without merging (auto-navigates back to main) |
 | `git claw publish [<name>]` | Push worktree branch to remote with upstream tracking |
-| `git claw finish <name>` | Verify tests via hooks, merge into `main`, delete branch, and cleanup |
+| `git claw finish <name>` | Verify tests via hooks, merge into `main`, delete branch, and cleanup (auto-navigates back to main) |
 | `git claw open <name>` | Open worktree directory in default editor (`$EDITOR` or IDE) |
 | `git claw run <name> <cmd...>` | Execute a command inside the worktree with `.env.worktree` loaded |
 | `git claw cd <name>` | Output physical directory path for shell navigation |
 | `git claw tag` | Commitizen-style SemVer bump, changelog update, and annotated release tag |
 | `git claw tag <version>` | Create an explicit release tag and synchronize project manifests |
+| `git claw shell-hook [shell]` | Output shell integration functions (`bash`, `zsh`, `fish`) for auto-cd |
 | `git claw completion <shell>` | Generate shell completions (`fish`, `bash`, `zsh`, `powershell`, `elvish`) |
 
 For options and flags, append `--help` to any subcommand.
@@ -163,18 +164,23 @@ git claw tag v1.0.0
 
 ## Shell Integration
 
-### Directory Navigation
-Add this helper to `~/.bashrc` or `~/.zshrc` to navigate into worktrees directly with `claw cd`:
+### Directory Navigation & Auto-CD
+`git-claw` includes shell integration so you can navigate worktrees effortlessly.
+
+- **On `start`**: by default, the active terminal session remains in the primary repository (`main`) because multiplexers like Herdr or modern IDEs open the worktree in their own context. Pass `--cd` to explicitly navigate your active shell into the worktree (`git claw feature start my-feat --cd`).
+- **On `finish` / `drop`**: when a worktree is merged or dropped, the shell automatically navigates back to the primary repository root (`main`) to avoid leaving you in a deleted directory.
+
+Enable the shell hook in your shell config:
 
 ```bash
-claw() {
-    if [ "$1" = "cd" ]; then
-        local target
-        target=$(git-claw cd "$2") && cd "$target"
-    else
-        git-claw "$@"
-    fi
-}
+# Fish (or placed in ~/.config/fish/conf.d/git_claw.fish):
+git-claw shell-hook fish | source
+
+# Bash:
+eval "$(git-claw shell-hook bash)"
+
+# Zsh:
+eval "$(git-claw shell-hook zsh)"
 ```
 
 ### Auto-Completion

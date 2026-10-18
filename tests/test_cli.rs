@@ -53,7 +53,21 @@ fn test_feature_start_help() {
     cmd.assert()
         .success()
         .stdout(predicate::str::contains("Create and start a new worktree"))
-        .stdout(predicate::str::contains("<NAME>"));
+        .stdout(predicate::str::contains("<NAME>"))
+        .stdout(predicate::str::contains("--cd"));
+}
+
+#[test]
+fn test_spike_start_help() {
+    let mut cmd = Command::cargo_bin("git-claw").expect("binary exists");
+    cmd.args(["spike", "start", "--help"]);
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "Create and start a new spike worktree",
+        ))
+        .stdout(predicate::str::contains("<NAME>"))
+        .stdout(predicate::str::contains("--cd"));
 }
 
 #[test]
