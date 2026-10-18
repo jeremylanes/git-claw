@@ -4,7 +4,7 @@
 //! and generates a tailored `.git-claw.toml`.
 
 use crate::cli::output::print_success;
-use crate::core::config::DockerConfig;
+use crate::core::config::{DockerConfig, EnvironmentConfig};
 use crate::infra::docker::parse_compose_services;
 use crate::infra::git::resolve_toplevel;
 use crate::workflow::error::WorkflowError;
@@ -270,12 +270,88 @@ fn scan_compose_network(content: &str) -> Option<String> {
     None
 }
 
+/// Scans repository root for runtime environments (`pyenv`, `uv`, `venv`),
+/// version files, and cache directories to share.
+///
+/// Returns detected `EnvironmentConfig` and an optional cache directory name to share (e.g. `".venv"`).
+///
+/// # Examples
+///
+/// ```
+/// use git_claw::workflow::init::scan_environment;
+/// use tempfile::tempdir;
+/// use std::fs;
+///
+/// let dir = tempdir().unwrap();
+/// fs::write(dir.path().join(".python-version"), "3.12.0\n").unwrap();
+/// let (env, cache_dir) = scan_environment(dir.path());
+/// assert_eq!(env.r#type.as_deref(), Some("pyenv"));
+/// assert_eq!(env.name.as_deref(), Some("3.12.0"));
+/// assert!(env.copy_files.contains(&".python-version".to_string()));
+/// assert_eq!(cache_dir, None);
+/// ```
+pub fn scan_environment(root: &Path) -> (EnvironmentConfig, Option<String>) {
+    let mut env = EnvironmentConfig::default();
+
+    let py_version_file = root.join(".python-version");
+    if py_version_file.is_file() {
+        env.r#type = Some("pyenv".to_string());
+        if let Ok(content) = fs::read_to_string(&py_version_file) {
+            let trimmed = content.trim();
+            if !trimmed.is_empty() {
+                env.name = Some(trimmed.to_string());
+            }
+        }
+    } else if root.join("uv.lock").is_file() {
+        env.r#type = Some("uv".to_string());
+    } else if root.join(".venv").is_dir() {
+        env.r#type = Some("venv".to_string());
+    }
+
+    let standard_files = [".python-version", ".node-version", ".nvmrc", ".envrc"];
+    for file in &standard_files {
+        if root.join(file).is_file() {
+            env.copy_files.push((*file).to_string());
+        }
+    }
+
+    let cache_dir = if root.join(".venv").is_dir() || root.join("uv.lock").is_file() {
+        Some(".venv".to_string())
+    } else {
+        None
+    };
+
+    (env, cache_dir)
+}
+
 /// Generates tailored `.git-claw.toml` content.
+///
+/// # Examples
+///
+/// ```
+/// use git_claw::workflow::init::generate_init_toml;
+/// use git_claw::core::config::{DockerConfig, EnvironmentConfig};
+/// use std::collections::BTreeMap;
+///
+/// let docker = DockerConfig::default();
+/// let env = EnvironmentConfig {
+///     r#type: Some("pyenv".to_string()),
+///     name: Some("3.12.0".to_string()),
+///     copy_files: vec![".python-version".to_string()],
+/// };
+/// let cache = vec![".venv".to_string()];
+/// let toml = generate_init_toml("main", &BTreeMap::new(), &[], &docker, &env, &cache);
+/// assert!(toml.contains("[environment]"));
+/// assert!(toml.contains("type = \"pyenv\""));
+/// assert!(toml.contains("[cache]"));
+/// ```
 pub fn generate_init_toml(
     main_branch: &str,
     ports: &BTreeMap<String, u16>,
     files: &[String],
     docker: &DockerConfig,
+    environment: &EnvironmentConfig,
+    cache_dirs: &[String],
 ) -> String {
     let mut toml = String::new();
     toml.push_str("[project]\n");
@@ -293,6 +369,38 @@ pub fn generate_init_toml(
         toml.push_str("copy = [\n");
         for f in files {
             toml.push_str(&format!("    \"{}\",\n", f));
+        }
+        toml.push_str("]\n");
+    }
+
+    let has_env = environment.r#type.is_some()
+        || environment.name.is_some()
+        || !environment.copy_files.is_empty();
+
+    if has_env {
+        toml.push_str("\n[environment]\n");
+        if let Some(ref t) = environment.r#type {
+            toml.push_str(&format!("type = \"{}\"\n", t));
+        }
+        if let Some(ref n) = environment.name {
+            toml.push_str(&format!("name = \"{}\"\n", n));
+        }
+        if !environment.copy_files.is_empty() {
+            let files_str = environment
+                .copy_files
+                .iter()
+                .map(|f| format!("\"{}\"", f))
+                .collect::<Vec<_>>()
+                .join(", ");
+            toml.push_str(&format!("copy_files = [{}]\n", files_str));
+        }
+    }
+
+    if !cache_dirs.is_empty() {
+        toml.push_str("\n[cache]\n");
+        toml.push_str("directories = [\n");
+        for d in cache_dirs {
+            toml.push_str(&format!("    \"{}\",\n", d));
         }
         toml.push_str("]\n");
     }
@@ -338,13 +446,23 @@ pub fn run_init_workflow(options: InitOptions) -> Result<PathBuf, WorkflowError>
     let env_files = scan_env_files(&root);
     let mut ports = extract_ports_from_env_files(&root, &env_files);
 
+    let (environment, cache_dir) = scan_environment(&root);
+    let cache_dirs = cache_dir.map(|c| vec![c]).unwrap_or_default();
+
     let docker = if let Some(compose_file) = scan_compose_file(&root) {
         scan_compose_details(&root, &compose_file, &mut ports)
     } else {
         DockerConfig::default()
     };
 
-    let content = generate_init_toml("main", &ports, &env_files, &docker);
+    let content = generate_init_toml(
+        "main",
+        &ports,
+        &env_files,
+        &docker,
+        &environment,
+        &cache_dirs,
+    );
     fs::write(&target, content)?;
 
     print_success(format!(
@@ -353,4 +471,49 @@ pub fn run_init_workflow(options: InitOptions) -> Result<PathBuf, WorkflowError>
     ));
 
     Ok(target)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_scan_environment_pyenv_and_venv() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join(".python-version"), "tune\n").unwrap();
+        fs::create_dir_all(dir.path().join(".venv")).unwrap();
+
+        let (env, cache_dir) = scan_environment(dir.path());
+        assert_eq!(env.r#type.as_deref(), Some("pyenv"));
+        assert_eq!(env.name.as_deref(), Some("tune"));
+        assert!(env.copy_files.contains(&".python-version".to_string()));
+        assert_eq!(cache_dir.as_deref(), Some(".venv"));
+    }
+
+    #[test]
+    fn test_scan_environment_uv() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("uv.lock"), "# lockfile").unwrap();
+
+        let (env, cache_dir) = scan_environment(dir.path());
+        assert_eq!(env.r#type.as_deref(), Some("uv"));
+        assert_eq!(env.name, None);
+        assert_eq!(cache_dir.as_deref(), Some(".venv"));
+    }
+
+    #[test]
+    fn test_scan_environment_node_files() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join(".nvmrc"), "v20.0.0\n").unwrap();
+        fs::write(dir.path().join(".node-version"), "20\n").unwrap();
+        fs::write(dir.path().join(".envrc"), "use flake\n").unwrap();
+
+        let (env, cache_dir) = scan_environment(dir.path());
+        assert_eq!(env.r#type, None);
+        assert!(env.copy_files.contains(&".nvmrc".to_string()));
+        assert!(env.copy_files.contains(&".node-version".to_string()));
+        assert!(env.copy_files.contains(&".envrc".to_string()));
+        assert_eq!(cache_dir, None);
+    }
 }

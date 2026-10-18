@@ -18,7 +18,7 @@ pub use changelog::{current_date_ymd, generate_changelog_entry, update_changelog
 pub use completion::{generate_completion, run_completion_workflow};
 pub use error::WorkflowError;
 pub use finish::{finish_worktree, FinishOptions};
-pub use init::{run_init_workflow, InitOptions};
+pub use init::{run_init_workflow, scan_environment, InitOptions};
 pub use list::list_worktrees;
 pub use nav::{cd_worktree, open_worktree, CdOptions, OpenOptions};
 pub use publish::{publish_worktree, resolve_active_worktree_slot, PublishOptions};
@@ -27,7 +27,7 @@ pub use shell::{
     generate_fish_hook, generate_posix_hook, generate_shell_hook, run_shell_hook, ShellHookOptions,
 };
 pub use spike::{drop_spike, DropSpikeOptions};
-pub use start::{start_worktree, StartOptions};
+pub use start::{propagate_environment_files, start_worktree, StartOptions};
 pub use tag::{
     tag_release, update_cargo_toml_version, update_pyproject_toml_version, update_toml_version,
     TagOptions,

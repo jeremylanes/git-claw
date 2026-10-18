@@ -125,9 +125,14 @@ post_start = "bin/up"        # Triggered after worktree creation
 pre_finish = "cargo test"    # Blocks merge into main if exit code != 0
 post_finish = "bin/down"     # Triggered after worktree deletion
 
+[environment]
+type = "pyenv"                 # "pyenv", "uv", "venv", or "none"
+name = "my-env"                # Target virtualenv or Python version
+copy_files = [".python-version"]# Files to propagate into worktrees
+
 [cache]
-strategy = "shared"          # "shared" (symlinks) or "isolated"
-shared_paths = [".venv", "node_modules", "target"]
+strategy = "shared"            # "shared" (symlinks) or "isolated"
+directories = [".venv", "node_modules", "target"]
 ```
 
 ---

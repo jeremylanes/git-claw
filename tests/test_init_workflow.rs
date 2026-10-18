@@ -148,3 +148,56 @@ fn test_init_cli_command_yes() {
     assert_eq!(config.ports.get("PORT"), Some(&5000));
     assert!(config.files.copy.contains(&".env".to_string()));
 }
+
+#[test]
+fn test_init_workflow_scans_environment_pyenv_and_venv() {
+    let repo = setup_repo();
+    let repo_path = repo.path();
+
+    fs::write(repo_path.join(".python-version"), "tune\n").expect("write .python-version");
+    fs::create_dir_all(repo_path.join(".venv")).expect("create .venv dir");
+
+    let result = run_init_workflow(InitOptions {
+        yes: true,
+        repo_root: Some(repo_path),
+    });
+    assert!(result.is_ok());
+
+    let config_path = repo_path.join(".git-claw.toml");
+    let raw = fs::read_to_string(&config_path).expect("read .git-claw.toml");
+    assert!(raw.contains("[environment]"));
+    assert!(raw.contains("type = \"pyenv\""));
+    assert!(raw.contains("name = \"tune\""));
+    assert!(raw.contains("copy_files = [\".python-version\"]"));
+    assert!(raw.contains("[cache]"));
+    assert!(raw.contains("\".venv\""));
+
+    let config = Config::load_or_default(&config_path, "env-repo").expect("parse config");
+    assert_eq!(config.environment.r#type.as_deref(), Some("pyenv"));
+    assert_eq!(config.environment.name.as_deref(), Some("tune"));
+    assert!(config
+        .environment
+        .copy_files
+        .contains(&".python-version".to_string()));
+    assert!(config.cache.directories.contains(&".venv".to_string()));
+}
+
+#[test]
+fn test_init_workflow_scans_uv() {
+    let repo = setup_repo();
+    let repo_path = repo.path();
+
+    fs::write(repo_path.join("uv.lock"), "# uv lockfile").expect("write uv.lock");
+
+    let result = run_init_workflow(InitOptions {
+        yes: true,
+        repo_root: Some(repo_path),
+    });
+    assert!(result.is_ok());
+
+    let config_path = repo_path.join(".git-claw.toml");
+    let config = Config::load_or_default(&config_path, "uv-repo").expect("parse config");
+    assert_eq!(config.environment.r#type.as_deref(), Some("uv"));
+    assert_eq!(config.environment.name, None);
+    assert!(config.cache.directories.contains(&".venv".to_string()));
+}

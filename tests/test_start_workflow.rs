@@ -126,3 +126,67 @@ fn test_cli_feature_start_e2e() {
 
     assert!(wt_parent.path().join("dashboard").exists());
 }
+
+#[test]
+fn test_start_worktree_environment_propagation() {
+    let (repo_dir, wt_parent) = setup_git_repo_with_config();
+    let repo_path = repo_dir.path();
+
+    // 1. Configure [environment] in .git-claw.toml
+    let config_content = format!(
+        r#"
+[project]
+main_branch = "main"
+worktree_root = "{}"
+
+[environment]
+type = "pyenv"
+name = "tune"
+copy_files = [".python-version"]
+
+[cache]
+directories = [".venv"]
+"#,
+        wt_parent.path().display()
+    );
+    fs::write(repo_path.join(".git-claw.toml"), config_content).expect("write config");
+
+    // 2. Create environment files and shared .venv in repo root
+    fs::write(repo_path.join(".python-version"), "tune\n").expect("write .python-version");
+    fs::write(repo_path.join(".nvmrc"), "v20.10.0\n").expect("write .nvmrc");
+    fs::create_dir_all(repo_path.join(".venv")).expect("create .venv");
+
+    // 3. Start feature worktree
+    let slot = start_worktree(StartOptions {
+        branch_type: BranchType::Feature,
+        name: "env-test",
+        isolated: false,
+        repo_root: Some(repo_path),
+    })
+    .expect("starts worktree");
+    assert_eq!(slot, 1);
+
+    let wt_path = wt_parent.path().join("env-test");
+    assert!(wt_path.exists());
+
+    // 4. Verify runtime files were propagated
+    let py_ver = wt_path.join(".python-version");
+    assert!(py_ver.exists(), ".python-version must exist in worktree");
+    assert_eq!(fs::read_to_string(&py_ver).unwrap(), "tune\n");
+
+    let nvmrc = wt_path.join(".nvmrc");
+    assert!(nvmrc.exists(), ".nvmrc must exist in worktree");
+    assert_eq!(fs::read_to_string(&nvmrc).unwrap(), "v20.10.0\n");
+
+    // 5. Verify .venv symlink exists
+    assert!(
+        wt_path.join(".venv").exists(),
+        ".venv must exist in worktree"
+    );
+
+    // 6. Verify .env.worktree has PYENV_VERSION and VIRTUAL_ENV / PATH
+    let env_content = fs::read_to_string(wt_path.join(".env.worktree")).expect("reads env");
+    assert!(env_content.contains("PYENV_VERSION=tune"));
+    assert!(env_content.contains(&format!("VIRTUAL_ENV={}/.venv", wt_path.display())));
+    assert!(env_content.contains(&format!("PATH={}/.venv/bin:$PATH", wt_path.display())));
+}

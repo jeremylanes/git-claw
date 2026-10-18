@@ -2,7 +2,7 @@
 
 use crate::cli::output::print_success;
 use crate::core::branch::BranchType;
-use crate::core::config::Config;
+use crate::core::config::{Config, EnvironmentConfig};
 use crate::core::port::{calculate_effective_ports, is_shared_service_port};
 use crate::core::slot::allocate_lowest_slot;
 use crate::infra::docker::generate_docker_compose_override;
@@ -17,6 +17,7 @@ use crate::infra::registry::{SlotRecord, SlotRegistry};
 use crate::infra::worktree::create_worktree;
 use crate::workflow::error::WorkflowError;
 use std::collections::BTreeMap;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -81,14 +82,26 @@ pub fn start_worktree(options: StartOptions<'_>) -> Result<u32, WorkflowError> {
         config.main_branch(),
     )?;
 
-    // Write .env.worktree
-    write_env_worktree(
+    // Propagate runtime environment files
+    let _ = propagate_environment_files(&toplevel, &worktree_path, &config.environment);
+
+    // Link shared cache directories (including .venv if configured or if env type is venv/uv)
+    let mut effective_cache = config.cache.clone();
+    if !options.isolated
+        && !effective_cache.directories.iter().any(|d| d == ".venv")
+        && (config.environment.r#type.as_deref() == Some("venv")
+            || config.environment.r#type.as_deref() == Some("uv"))
+        && toplevel.join(".venv").exists()
+    {
+        effective_cache.directories.push(".venv".to_string());
+    }
+
+    let _ = link_shared_cache_directories(
+        &toplevel,
         &worktree_path,
-        &repo_name,
-        options.name,
-        slot_id,
-        &effective_ports,
-    )?;
+        &effective_cache,
+        options.isolated,
+    );
 
     let compose_project = sanitize_compose_project_name(&repo_name, options.name, slot_id);
 
@@ -105,9 +118,15 @@ pub fn start_worktree(options: StartOptions<'_>) -> Result<u32, WorkflowError> {
     // Generate docker-compose.claw.override.yml if configured
     let _ = generate_docker_compose_override(&toplevel, &worktree_path, &config.docker);
 
-    // Link shared cache directories
-    let _ =
-        link_shared_cache_directories(&toplevel, &worktree_path, &config.cache, options.isolated);
+    // Write .env.worktree
+    write_env_worktree(
+        &worktree_path,
+        &repo_name,
+        options.name,
+        slot_id,
+        &effective_ports,
+        Some(&config.environment),
+    )?;
 
     // Record in registry and persist atomically
     let now = SystemTime::now()
@@ -158,4 +177,131 @@ pub fn start_worktree(options: StartOptions<'_>) -> Result<u32, WorkflowError> {
     ));
 
     Ok(slot_id)
+}
+
+/// Propagates environment configuration files from the primary repository to the worktree.
+///
+/// Handles declared files in `environment.copy_files`, standard runtime files (`.python-version`,
+/// `.node-version`, `.nvmrc`, `.envrc`), and writes `.python-version` from `environment.name`
+/// if absent.
+///
+/// # Examples
+///
+/// ```
+/// use git_claw::workflow::start::propagate_environment_files;
+/// use git_claw::core::config::EnvironmentConfig;
+/// use tempfile::tempdir;
+/// use std::fs;
+///
+/// let top = tempdir().unwrap();
+/// let wt = tempdir().unwrap();
+/// fs::write(top.path().join(".python-version"), "3.12.0\n").unwrap();
+///
+/// let env = EnvironmentConfig::default();
+/// propagate_environment_files(top.path(), wt.path(), &env).unwrap();
+/// assert_eq!(fs::read_to_string(wt.path().join(".python-version")).unwrap(), "3.12.0\n");
+/// ```
+pub fn propagate_environment_files(
+    toplevel: &Path,
+    worktree_path: &Path,
+    env_config: &EnvironmentConfig,
+) -> std::io::Result<()> {
+    // 1. Copy files declared in environment.copy_files
+    for file in &env_config.copy_files {
+        let file = file.trim();
+        if file.is_empty() {
+            continue;
+        }
+        let src = toplevel.join(file);
+        let dst = worktree_path.join(file);
+        if src.is_file() {
+            if let Some(parent) = dst.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::copy(&src, &dst)?;
+        }
+    }
+
+    // 2. Check standard version files: .python-version, .node-version, .nvmrc, .envrc
+    for file in &[".python-version", ".node-version", ".nvmrc", ".envrc"] {
+        let src = toplevel.join(file);
+        let dst = worktree_path.join(file);
+        if src.is_file() && !dst.exists() {
+            if let Some(parent) = dst.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::copy(&src, &dst)?;
+        }
+    }
+
+    // 3. Fallback: if environment.name is set and .python-version does not exist in worktree, write it
+    let py_version_dst = worktree_path.join(".python-version");
+    if !py_version_dst.exists() {
+        if let Some(ref name) = env_config.name {
+            let content = if name.ends_with('\n') {
+                name.clone()
+            } else {
+                format!("{}\n", name)
+            };
+            fs::write(&py_version_dst, content)?;
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_propagate_environment_files_declared_and_standard() {
+        let top = tempdir().unwrap();
+        let wt = tempdir().unwrap();
+
+        fs::write(top.path().join(".python-version"), "tune\n").unwrap();
+        fs::write(top.path().join(".nvmrc"), "20\n").unwrap();
+        fs::write(top.path().join("custom.env"), "FOO=BAR\n").unwrap();
+
+        let env = EnvironmentConfig {
+            r#type: Some("pyenv".to_string()),
+            name: Some("tune".to_string()),
+            copy_files: vec!["custom.env".to_string()],
+        };
+
+        propagate_environment_files(top.path(), wt.path(), &env).unwrap();
+
+        assert_eq!(
+            fs::read_to_string(wt.path().join(".python-version")).unwrap(),
+            "tune\n"
+        );
+        assert_eq!(
+            fs::read_to_string(wt.path().join(".nvmrc")).unwrap(),
+            "20\n"
+        );
+        assert_eq!(
+            fs::read_to_string(wt.path().join("custom.env")).unwrap(),
+            "FOO=BAR\n"
+        );
+    }
+
+    #[test]
+    fn test_propagate_environment_fallback_name() {
+        let top = tempdir().unwrap();
+        let wt = tempdir().unwrap();
+
+        let env = EnvironmentConfig {
+            r#type: Some("pyenv".to_string()),
+            name: Some("my-virtualenv".to_string()),
+            copy_files: vec![],
+        };
+
+        propagate_environment_files(top.path(), wt.path(), &env).unwrap();
+
+        assert_eq!(
+            fs::read_to_string(wt.path().join(".python-version")).unwrap(),
+            "my-virtualenv\n"
+        );
+    }
 }

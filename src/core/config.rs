@@ -107,6 +107,35 @@ impl DockerConfig {
     }
 }
 
+/// Environment and runtime version configuration.
+///
+/// Specifies runtime managers (`pyenv`, `uv`, `venv`), version names,
+/// and environment files to propagate into newly created worktrees.
+///
+/// # Examples
+///
+/// ```
+/// use git_claw::core::config::EnvironmentConfig;
+///
+/// let env = EnvironmentConfig {
+///     r#type: Some("pyenv".to_string()),
+///     name: Some("3.12.0".to_string()),
+///     copy_files: vec![".python-version".to_string()],
+/// };
+/// assert_eq!(env.r#type.as_deref(), Some("pyenv"));
+/// assert_eq!(env.name.as_deref(), Some("3.12.0"));
+/// assert_eq!(env.copy_files.len(), 1);
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct EnvironmentConfig {
+    #[serde(default)]
+    pub r#type: Option<String>,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub copy_files: Vec<String>,
+}
+
 /// Strongly-typed configuration parsed from `.git-claw.toml` or `~/.git-claw/config.toml`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct Config {
@@ -122,6 +151,8 @@ pub struct Config {
     pub files: FilesConfig,
     #[serde(default)]
     pub docker: DockerConfig,
+    #[serde(default)]
+    pub environment: EnvironmentConfig,
 }
 
 impl Config {
@@ -138,6 +169,7 @@ impl Config {
             cache: CacheConfig::default(),
             files: FilesConfig::default(),
             docker: DockerConfig::default(),
+            environment: EnvironmentConfig::default(),
         }
     }
 
@@ -222,6 +254,16 @@ impl Config {
         if !other.docker.shared_services.is_empty() {
             self.docker.shared_services = other.docker.shared_services;
         }
+
+        if other.environment.r#type.is_some() {
+            self.environment.r#type = other.environment.r#type;
+        }
+        if other.environment.name.is_some() {
+            self.environment.name = other.environment.name;
+        }
+        if !other.environment.copy_files.is_empty() {
+            self.environment.copy_files = other.environment.copy_files;
+        }
     }
 
     /// Parses a TOML string into `Config`, filling missing fields with defaults.
@@ -278,5 +320,49 @@ impl Config {
         }
 
         Ok(base)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_environment_config_parse_toml() {
+        let toml_str = r#"
+[project]
+main_branch = "main"
+
+[environment]
+type = "pyenv"
+name = "3.11.0"
+copy_files = [".python-version", ".nvmrc"]
+"#;
+        let config = Config::parse_toml_str(toml_str, "test-repo").expect("parses toml");
+        assert_eq!(config.environment.r#type.as_deref(), Some("pyenv"));
+        assert_eq!(config.environment.name.as_deref(), Some("3.11.0"));
+        assert_eq!(
+            config.environment.copy_files,
+            vec![".python-version".to_string(), ".nvmrc".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_environment_config_merge_with() {
+        let mut base = Config::default_for_repo("test-repo");
+        assert_eq!(base.environment.r#type, None);
+        assert_eq!(base.environment.name, None);
+        assert!(base.environment.copy_files.is_empty());
+
+        let mut override_cfg = Config::default_for_repo("test-repo");
+        override_cfg.environment.r#type = Some("uv".to_string());
+        override_cfg.environment.name = Some("custom-env".to_string());
+        override_cfg.environment.copy_files = vec![".envrc".to_string()];
+
+        base.merge_with(override_cfg);
+
+        assert_eq!(base.environment.r#type.as_deref(), Some("uv"));
+        assert_eq!(base.environment.name.as_deref(), Some("custom-env"));
+        assert_eq!(base.environment.copy_files, vec![".envrc".to_string()]);
     }
 }

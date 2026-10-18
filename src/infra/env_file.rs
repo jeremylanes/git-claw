@@ -1,5 +1,6 @@
 //! `.env.worktree` generation and environment variable injection.
 
+use crate::core::config::EnvironmentConfig;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
@@ -19,12 +20,39 @@ pub fn sanitize_compose_project_name(repo: &str, worktree_name: &str, slot_id: u
 }
 
 /// Generates `.env.worktree` inside the worktree directory.
+///
+/// Injects slot ID, worktree name and path, Docker Compose project name,
+/// calculated dynamic ports, optional Python runtime environment (`PYENV_VERSION`),
+/// and virtualenv variables (`VIRTUAL_ENV`, `PATH`) when `.venv` is present.
+///
+/// # Examples
+///
+/// ```
+/// use git_claw::infra::env_file::write_env_worktree;
+/// use git_claw::core::config::EnvironmentConfig;
+/// use std::collections::BTreeMap;
+/// use tempfile::tempdir;
+/// use std::fs;
+///
+/// let dir = tempdir().unwrap();
+/// let wt = dir.path().join("wt-1");
+/// fs::create_dir_all(&wt).unwrap();
+///
+/// let env = EnvironmentConfig {
+///     name: Some("3.12.0".to_string()),
+///     ..Default::default()
+/// };
+/// write_env_worktree(&wt, "repo", "wt-1", 1, &BTreeMap::new(), Some(&env)).unwrap();
+/// let content = fs::read_to_string(wt.join(".env.worktree")).unwrap();
+/// assert!(content.contains("PYENV_VERSION=3.12.0"));
+/// ```
 pub fn write_env_worktree(
     worktree_path: &Path,
     repo_name: &str,
     worktree_name: &str,
     slot_id: u32,
     effective_ports: &BTreeMap<String, u16>,
+    environment: Option<&EnvironmentConfig>,
 ) -> std::io::Result<()> {
     let compose_project = sanitize_compose_project_name(repo_name, worktree_name, slot_id);
     let env_path = worktree_path.join(".env.worktree");
@@ -37,6 +65,18 @@ pub fn write_env_worktree(
 
     for (key, port) in effective_ports {
         lines.push(format!("{}={}", key, port));
+    }
+
+    if let Some(env) = environment {
+        if let Some(ref name) = env.name {
+            lines.push(format!("PYENV_VERSION={}", name));
+        }
+    }
+
+    let venv_path = worktree_path.join(".venv");
+    if venv_path.exists() {
+        lines.push(format!("VIRTUAL_ENV={}", venv_path.display()));
+        lines.push(format!("PATH={}/bin:$PATH", venv_path.display()));
     }
 
     let content = lines.join("\n") + "\n";
