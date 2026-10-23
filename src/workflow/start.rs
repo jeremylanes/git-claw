@@ -116,7 +116,13 @@ pub fn start_worktree(options: StartOptions<'_>) -> Result<u32, WorkflowError> {
     );
 
     // Generate docker-compose.claw.override.yml if configured
-    let _ = generate_docker_compose_override(&toplevel, &worktree_path, &config.docker);
+    let _ = generate_docker_compose_override(
+        &toplevel,
+        &worktree_path,
+        &config.docker,
+        Some(slot_id),
+        Some(&repo_name),
+    );
 
     // Write .env.worktree
     write_env_worktree(

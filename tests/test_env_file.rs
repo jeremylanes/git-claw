@@ -1,5 +1,7 @@
 use git_claw::core::config::EnvironmentConfig;
-use git_claw::infra::env_file::write_env_worktree;
+use git_claw::infra::env_file::{
+    extract_base_db, update_env_content_with_ports, write_env_worktree,
+};
 use std::collections::BTreeMap;
 use std::fs;
 use tempfile::tempdir;
@@ -25,6 +27,8 @@ fn test_write_env_worktree_all_variables() {
     assert!(content.contains("CLAW_WORKTREE_NAME=auth-v1"));
     assert!(content.contains(&format!("CLAW_WORKTREE_PATH={}", worktree_path.display())));
     assert!(content.contains("COMPOSE_PROJECT_NAME=my_repo_auth_v1_2"));
+    assert!(content.contains("TEST_DATABASE_NAME=test_my_repo_slot_2"));
+    assert!(content.contains("CLAW_TEST_DB=test_my_repo_slot_2"));
     assert!(content.contains("PORT_WEB=3002"));
     assert!(content.contains("PORT_API=8002"));
 }
@@ -54,6 +58,8 @@ fn test_write_env_worktree_pyenv_version() {
     let env_file = worktree_path.join(".env.worktree");
     let content = fs::read_to_string(&env_file).expect("reads env file");
     assert!(content.contains("PYENV_VERSION=tune"));
+    assert!(content.contains("TEST_DATABASE_NAME=test_my_repo_slot_1"));
+    assert!(content.contains("CLAW_TEST_DB=test_my_repo_slot_1"));
     assert!(!content.contains("VIRTUAL_ENV="));
 }
 
@@ -78,4 +84,34 @@ fn test_write_env_worktree_venv_present() {
     let venv_path = worktree_path.join(".venv");
     assert!(content.contains(&format!("VIRTUAL_ENV={}", venv_path.display())));
     assert!(content.contains(&format!("PATH={}/bin:$PATH", venv_path.display())));
+    assert!(content.contains("TEST_DATABASE_NAME=test_my_repo_slot_3"));
+    assert!(content.contains("CLAW_TEST_DB=test_my_repo_slot_3"));
+}
+
+#[test]
+fn test_extract_base_db_various_inputs() {
+    assert_eq!(extract_base_db("test_tune_slot_1", Some("tune")), "tune");
+    assert_eq!(extract_base_db("test_tune_slot_2", None), "tune");
+    assert_eq!(extract_base_db("test_tune_1", Some("tune")), "tune");
+    assert_eq!(extract_base_db("test_tune", None), "tune");
+    assert_eq!(extract_base_db("test_tune_2", None), "tune");
+    assert_eq!(extract_base_db("tune", None), "tune");
+    assert_eq!(extract_base_db("test_1", Some("tune")), "tune");
+    assert_eq!(extract_base_db("", Some("tune")), "tune");
+    assert_eq!(extract_base_db("test_postgres_db_3", None), "postgres_db");
+    assert_eq!(
+        extract_base_db("test_postgres_db_slot_3", None),
+        "postgres_db"
+    );
+}
+
+#[test]
+fn test_update_env_content_with_ports_db_isolation() {
+    let original = "DATABASE_NAME=tune\nPORT=80\n";
+    let updated_slot1 = update_env_content_with_ports(original, &BTreeMap::new(), 1, None);
+    assert!(updated_slot1.contains("TEST_DATABASE_NAME=test_tune_slot_1"));
+
+    let updated_slot2 = update_env_content_with_ports(&updated_slot1, &BTreeMap::new(), 2, None);
+    assert!(updated_slot2.contains("TEST_DATABASE_NAME=test_tune_slot_2"));
+    assert!(!updated_slot2.contains("test_tune_slot_1"));
 }

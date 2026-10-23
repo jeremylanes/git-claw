@@ -198,6 +198,12 @@ shared_services = ["postgres"]
     assert!(override_content.contains("tune_shared_network:"));
     assert!(override_content.contains("external: true"));
 
+    // Check environment injection for isolated test database
+    assert!(override_content.contains("environment:"));
+    assert!(override_content.contains("TEST_DATABASE_NAME="));
+    assert!(override_content.contains("_slot_1"));
+    assert!(override_content.contains("CLAW_TEST_DB="));
+
     // Base compose file remains unchanged
     let original = fs::read_to_string(repo_path.join("docker-compose.yml")).expect("read original");
     assert_eq!(original, compose_content);
@@ -221,8 +227,41 @@ shared_services = ["postgres"]
 fn test_docker_disabled_when_empty() {
     let dir = tempdir().expect("tempdir");
     let config = DockerConfig::default();
-    let result =
-        generate_docker_compose_override(dir.path(), dir.path(), &config).expect("generate");
+    let result = generate_docker_compose_override(dir.path(), dir.path(), &config, None, None)
+        .expect("generate");
     assert!(result.is_none());
     assert!(!dir.path().join("docker-compose.override.yml").exists());
+}
+
+#[test]
+fn test_generate_docker_compose_override_with_and_without_slot_id() {
+    let dir = tempdir().expect("tempdir");
+    let compose_file = dir.path().join("docker-compose.yml");
+    fs::write(&compose_file, "services:\n  web:\n    image: app\n").expect("write compose");
+
+    let config = DockerConfig {
+        compose_file: None,
+        network: Some("test_net".to_string()),
+        shared_services: vec![],
+    };
+
+    // With slot_id: environment block injected into non-shared services
+    let res_with =
+        generate_docker_compose_override(dir.path(), dir.path(), &config, Some(2), Some("my-repo"))
+            .expect("generate with slot");
+    assert!(res_with.is_some());
+    let content_with =
+        fs::read_to_string(dir.path().join("docker-compose.override.yml")).expect("read override");
+    assert!(content_with.contains("TEST_DATABASE_NAME=test_my_repo_slot_2"));
+    assert!(content_with.contains("CLAW_TEST_DB=test_my_repo_slot_2"));
+
+    // Without slot_id: no environment block injected
+    let res_without =
+        generate_docker_compose_override(dir.path(), dir.path(), &config, None, Some("my-repo"))
+            .expect("generate without slot");
+    assert!(res_without.is_some());
+    let content_without =
+        fs::read_to_string(dir.path().join("docker-compose.override.yml")).expect("read override");
+    assert!(!content_without.contains("TEST_DATABASE_NAME"));
+    assert!(!content_without.contains("CLAW_TEST_DB"));
 }
