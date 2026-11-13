@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.6.0] - 2026-11-13
+
+### Features
+
+- **cli**: add --json output and interactive init overwrite guard
+- **infra**: isolate slot test databases with slot prefix and docker compose override injection
+
 ## [v0.5.0] - 2026-10-18
 
 ### Features
