@@ -1,3 +1,14 @@
+---
+title: 'Automatic Environment Detection and Propagation (pyenv, uv, venv)'
+type: 'feature'
+ticket: 18
+created: '2026-10-18'
+status: 'built'
+route: 'full'
+risk: 'low'
+review: 'quick'
+---
+
 # Story Plan: Automatic Environment Detection and Propagation (`pyenv`, `uv`, `venv`)
 
 ## Ticket 18

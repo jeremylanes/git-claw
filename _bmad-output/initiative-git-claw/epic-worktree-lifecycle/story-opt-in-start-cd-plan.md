@@ -1,3 +1,14 @@
+---
+title: 'Opt-in Navigation on Worktree Start (--cd)'
+type: 'feature'
+ticket: 17
+created: '2026-10-18'
+status: 'built'
+route: 'full'
+risk: 'low'
+review: 'quick'
+---
+
 # Story Plan: Opt-in Navigation on Worktree Start (`--cd`)
 
 ## Ticket 17

@@ -4,18 +4,38 @@ use clap::{Parser, Subcommand};
 use std::ffi::OsString;
 
 /// Deterministic git worktree orchestration engine for developers and AI agents.
+///
+/// # Examples
+///
+/// ```
+/// use git_claw::cli::{Cli, Commands};
+///
+/// let cli = Cli::try_parse_from_args(["git-claw", "list", "--json"]).unwrap();
+/// assert!(matches!(cli.command, Some(Commands::List { json: true })));
+/// ```
 #[derive(Parser, Debug, Clone, PartialEq, Eq)]
 #[command(
     name = "git-claw",
     bin_name = "git-claw",
     version,
-    about = "Deterministic git worktree orchestration engine for developers and AI agents"
+    about = "Deterministic git worktree orchestration engine for developers and AI agents",
+    long_about = None
 )]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Commands>,
 }
 
+/// Top-level `git-claw` CLI subcommands.
+///
+/// # Examples
+///
+/// ```
+/// use git_claw::cli::{Cli, Commands};
+///
+/// let cli = Cli::try_parse_from_args(["git-claw", "finish", "auth", "--json"]).unwrap();
+/// assert!(matches!(cli.command, Some(Commands::Finish { json: true, .. })));
+/// ```
 #[derive(Subcommand, Debug, Clone, PartialEq, Eq)]
 pub enum Commands {
     /// Manage feature worktrees
@@ -48,6 +68,9 @@ pub enum Commands {
         /// Keep remote branch on remote repository instead of deleting it
         #[arg(long, short = 'k')]
         keep_remote: bool,
+        /// Output structured JSON summary to stdout
+        #[arg(long)]
+        json: bool,
     },
     /// Publish a worktree branch to remote with upstream tracking
     Publish {
@@ -56,9 +79,16 @@ pub enum Commands {
         /// Remote repository name (defaults to origin)
         #[arg(long)]
         remote: Option<String>,
+        /// Output structured JSON summary to stdout
+        #[arg(long)]
+        json: bool,
     },
     /// List all active worktree slots
-    List,
+    List {
+        /// Output structured JSON summary to stdout
+        #[arg(long)]
+        json: bool,
+    },
     /// Run an arbitrary command inside a worktree with environment injected
     Run {
         /// Worktree name (inferred from cwd if omitted)
@@ -87,6 +117,9 @@ pub enum Commands {
         /// Automatically accept all inferred defaults without prompting
         #[arg(long, short = 'y')]
         yes: bool,
+        /// Output structured JSON summary to stdout (requires --yes)
+        #[arg(long)]
+        json: bool,
     },
     /// Output shell integration script for auto-cd navigation
     #[command(name = "shell-hook")]
@@ -104,6 +137,22 @@ pub enum Commands {
     },
 }
 
+/// Subcommands for `feature`, `bugfix`, and `hotfix` worktree lifecycles.
+///
+/// # Examples
+///
+/// ```
+/// use git_claw::cli::{Cli, Commands, WorktreeAction};
+///
+/// let cli = Cli::try_parse_from_args(["git-claw", "feature", "start", "demo", "--json"]).unwrap();
+/// match cli.command {
+///     Some(Commands::Feature { action: WorktreeAction::Start { name, json, .. } }) => {
+///         assert_eq!(name, "demo");
+///         assert!(json);
+///     }
+///     _ => panic!("unexpected parse result"),
+/// }
+/// ```
 #[derive(Subcommand, Debug, Clone, PartialEq, Eq)]
 pub enum WorktreeAction {
     /// Create and start a new worktree
@@ -116,6 +165,9 @@ pub enum WorktreeAction {
         /// Automatically navigate (cd) to the worktree directory after creation
         #[arg(long)]
         cd: bool,
+        /// Output structured JSON summary to stdout
+        #[arg(long)]
+        json: bool,
     },
     /// Publish the worktree branch to remote with upstream tracking
     Publish {
@@ -124,9 +176,25 @@ pub enum WorktreeAction {
         /// Remote repository name (defaults to origin)
         #[arg(long)]
         remote: Option<String>,
+        /// Output structured JSON summary to stdout
+        #[arg(long)]
+        json: bool,
     },
 }
 
+/// Subcommands for `spike` disposable worktrees.
+///
+/// # Examples
+///
+/// ```
+/// use git_claw::cli::{Cli, Commands, SpikeAction};
+///
+/// let cli = Cli::try_parse_from_args(["git-claw", "spike", "drop", "poc", "--json"]).unwrap();
+/// assert!(matches!(
+///     cli.command,
+///     Some(Commands::Spike { action: SpikeAction::Drop { json: true, .. } })
+/// ));
+/// ```
 #[derive(Subcommand, Debug, Clone, PartialEq, Eq)]
 pub enum SpikeAction {
     /// Create and start a new spike worktree
@@ -139,11 +207,17 @@ pub enum SpikeAction {
         /// Automatically navigate (cd) to the worktree directory after creation
         #[arg(long)]
         cd: bool,
+        /// Output structured JSON summary to stdout
+        #[arg(long)]
+        json: bool,
     },
     /// Drop a spike worktree without merging
     Drop {
         /// Name of the spike branch/worktree
         name: String,
+        /// Output structured JSON summary to stdout
+        #[arg(long)]
+        json: bool,
     },
 }
 

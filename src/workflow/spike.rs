@@ -1,6 +1,6 @@
 //! Spike worktree drop and abandonment orchestration.
 
-use crate::cli::output::print_success;
+use crate::cli::output::{print_success, DropSpikeSummary};
 use crate::infra::git::{resolve_git_common_dir, resolve_primary_repo_root};
 use crate::infra::lock::SlotLock;
 use crate::infra::registry::SlotRegistry;
@@ -13,8 +13,32 @@ pub struct DropSpikeOptions<'a> {
     pub repo_root: Option<&'a Path>,
 }
 
-/// Drops a spike worktree without merging, force-removes the worktree and branch, and frees the slot.
-pub fn drop_spike(options: DropSpikeOptions<'_>) -> Result<(), WorkflowError> {
+/// Drops a spike worktree without merging and returns structured cleanup details.
+///
+/// When `quiet_stdout` is `true`, informational banners are suppressed so stdout stays pure JSON.
+///
+/// # Examples
+///
+/// ```no_run
+/// use std::path::Path;
+/// use git_claw::workflow::spike::{drop_spike_summary, DropSpikeOptions};
+///
+/// # fn run() -> Result<(), git_claw::workflow::WorkflowError> {
+/// let summary = drop_spike_summary(
+///     DropSpikeOptions {
+///         name: "poc",
+///         repo_root: Some(Path::new(".")),
+///     },
+///     true,
+/// )?;
+/// assert_eq!(summary.name, "poc");
+/// # Ok(())
+/// # }
+/// ```
+pub fn drop_spike_summary(
+    options: DropSpikeOptions<'_>,
+    quiet_stdout: bool,
+) -> Result<DropSpikeSummary, WorkflowError> {
     let toplevel = resolve_primary_repo_root(options.repo_root)?;
     let common_dir = resolve_git_common_dir(Some(&toplevel))?;
 
@@ -47,10 +71,22 @@ pub fn drop_spike(options: DropSpikeOptions<'_>) -> Result<(), WorkflowError> {
         toplevel.to_string_lossy().as_bytes(),
     );
 
-    print_success(format!(
-        "Spike worktree '{}' (Slot {}) and branch '{}' dropped successfully without merging",
-        slot.name, slot.id, slot.branch
-    ));
+    if !quiet_stdout {
+        print_success(format!(
+            "Spike worktree '{}' (Slot {}) and branch '{}' dropped successfully without merging",
+            slot.name, slot.id, slot.branch
+        ));
+    }
 
-    Ok(())
+    Ok(DropSpikeSummary {
+        name: slot.name,
+        branch: slot.branch,
+        slot_id: Some(slot.id),
+        primary_root: toplevel.to_string_lossy().to_string(),
+    })
+}
+
+/// Drops a spike worktree without merging, force-removes the worktree and branch, and frees the slot.
+pub fn drop_spike(options: DropSpikeOptions<'_>) -> Result<(), WorkflowError> {
+    drop_spike_summary(options, false).map(|_| ())
 }

@@ -76,3 +76,41 @@ fn test_list_command_stub() {
     cmd.arg("list");
     cmd.assert().success();
 }
+
+#[test]
+fn test_help_does_not_leak_doctests() {
+    use clap::CommandFactory;
+    use git_claw::cli::Cli;
+
+    fn assert_clean_help(cmd: &mut clap::Command, path: &str) {
+        let help = cmd.render_long_help().to_string();
+        for forbidden in ["# Examples", "try_parse_from_args", "```"] {
+            assert!(
+                !help.contains(forbidden),
+                "Help output for `{path}` leaked doctest token `{forbidden}`:\n{help}"
+            );
+        }
+        let sub_names: Vec<String> = cmd
+            .get_subcommands()
+            .map(|s| s.get_name().to_string())
+            .collect();
+        for name in sub_names {
+            if let Some(sub) = cmd.find_subcommand_mut(&name) {
+                let child_path = format!("{path} {name}");
+                assert_clean_help(sub, &child_path);
+            }
+        }
+    }
+
+    let mut root = Cli::command();
+    assert_clean_help(&mut root, "git-claw");
+
+    let mut bin_cmd = Command::cargo_bin("git-claw").expect("binary exists");
+    bin_cmd.arg("--help");
+    bin_cmd
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("# Examples").not())
+        .stdout(predicate::str::contains("try_parse_from_args").not())
+        .stdout(predicate::str::contains("```").not());
+}

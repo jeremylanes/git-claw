@@ -17,17 +17,24 @@ pub mod tag;
 pub use changelog::{current_date_ymd, generate_changelog_entry, update_changelog_file};
 pub use completion::{generate_completion, run_completion_workflow};
 pub use error::WorkflowError;
-pub use finish::{finish_worktree, FinishOptions};
-pub use init::{run_init_workflow, scan_environment, InitOptions};
-pub use list::list_worktrees;
+pub use finish::{finish_worktree, finish_worktree_summary, FinishOptions};
+pub use init::{
+    run_init_workflow, run_init_workflow_summary, run_init_workflow_with_io, scan_environment,
+    InitOptions,
+};
+pub use list::{list_worktrees, list_worktrees_summary, list_worktrees_with_output};
 pub use nav::{cd_worktree, open_worktree, CdOptions, OpenOptions};
-pub use publish::{publish_worktree, resolve_active_worktree_slot, PublishOptions};
+pub use publish::{
+    publish_worktree, publish_worktree_summary, resolve_active_worktree_slot, PublishOptions,
+};
 pub use run::{run_command, RunOptions};
 pub use shell::{
     generate_fish_hook, generate_posix_hook, generate_shell_hook, run_shell_hook, ShellHookOptions,
 };
-pub use spike::{drop_spike, DropSpikeOptions};
-pub use start::{propagate_environment_files, start_worktree, StartOptions};
+pub use spike::{drop_spike, drop_spike_summary, DropSpikeOptions};
+pub use start::{
+    propagate_environment_files, start_worktree, start_worktree_summary, StartOptions,
+};
 pub use tag::{
     tag_release, update_cargo_toml_version, update_pyproject_toml_version, update_toml_version,
     TagOptions,

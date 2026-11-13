@@ -3,7 +3,7 @@ title: 'Cargo.toml version synchronization on release tag (git claw tag <version
 type: 'feature'
 ticket: 12
 created: '2026-10-17'
-status: 'ready-to-build'
+status: 'built'
 route: 'full'
 risk: 'low'
 review: 'quick'

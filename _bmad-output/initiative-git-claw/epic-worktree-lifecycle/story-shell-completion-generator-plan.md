@@ -3,7 +3,7 @@ title: 'Shell auto-completion engine (git claw completion <shell>)'
 type: 'feature'
 ticket: 10
 created: '2026-10-10'
-status: 'ready-to-build'
+status: 'built'
 route: 'full'
 risk: 'low'
 review: 'quick'

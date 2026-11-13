@@ -1,0 +1,104 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            ext: tar.gz
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            ext: tar.gz
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            ext: tar.gz
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            ext: tar.gz
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            ext: zip
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install musl-tools for static Linux build
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build release binary
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Package archive (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          mkdir -p dist staging
+          cp "target/${{ matrix.target }}/release/git-claw" staging/git-claw
+          cp README.md LICENSE staging/
+          tar -C staging -czf "dist/git-claw-${{ github.ref_name }}-${{ matrix.target }}.tar.gz" git-claw README.md LICENSE
+
+      - name: Package archive (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist, staging | Out-Null
+          Copy-Item "target/${{ matrix.target }}/release/git-claw.exe" staging/git-claw.exe
+          Copy-Item README.md, LICENSE staging/
+          Compress-Archive -Path staging/* -DestinationPath "dist/git-claw-${{ github.ref_name }}-${{ matrix.target }}.zip"
+
+      - name: Upload target artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.target }}
+          path: dist/git-claw-${{ github.ref_name }}-${{ matrix.target }}.${{ matrix.ext }}
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: dist
+
+      - name: Generate SHA256 checksums
+        shell: bash
+        run: |
+          cd dist
+          sha256sum git-claw-* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: dist/*

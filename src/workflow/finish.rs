@@ -1,12 +1,12 @@
 //! Finish worktree lifecycle orchestration.
 
-use crate::cli::output::{print_success, print_warning};
+use crate::cli::output::{print_success, print_warning, FinishSummary};
 use crate::core::config::Config;
 use crate::infra::git::{
     git_checkout, git_delete_remote_branch, git_get_remotes, git_is_clean, git_merge,
     git_remote_branch_exists, resolve_git_common_dir, resolve_primary_repo_root, resolve_repo_name,
 };
-use crate::infra::hook::{run_post_finish_hook, run_pre_finish_hook};
+use crate::infra::hook::{run_post_finish_hook_with_output, run_pre_finish_hook_with_output};
 use crate::infra::lock::SlotLock;
 use crate::infra::registry::SlotRegistry;
 use crate::infra::worktree::{delete_branch, remove_worktree};
@@ -38,25 +38,35 @@ pub struct FinishOptions<'a> {
     pub repo_root: Option<&'a Path>,
 }
 
-/// Orchestrates finishing and merging a worktree following the AD-8 teardown order.
+/// Orchestrates finishing and merging a worktree, returning structured completion details.
 ///
-/// # Example
+/// When `quiet_stdout` is `true`, informational banners are suppressed and hook stdout
+/// is redirected to stderr so stdout stays clean for `--json`.
+///
+/// # Examples
 ///
 /// ```no_run
 /// use std::path::Path;
-/// use git_claw::workflow::{finish_worktree, FinishOptions};
+/// use git_claw::workflow::finish::{finish_worktree_summary, FinishOptions};
 ///
 /// # fn run() -> Result<(), git_claw::workflow::WorkflowError> {
-/// finish_worktree(FinishOptions {
-///     name: Some("login"),
-///     force: false,
-///     keep_remote: false,
-///     repo_root: Some(Path::new(".")),
-/// })?;
+/// let summary = finish_worktree_summary(
+///     FinishOptions {
+///         name: Some("login"),
+///         force: false,
+///         keep_remote: false,
+///         repo_root: Some(Path::new(".")),
+///     },
+///     true,
+/// )?;
+/// assert_eq!(summary.name, "login");
 /// # Ok(())
 /// # }
 /// ```
-pub fn finish_worktree(options: FinishOptions<'_>) -> Result<(), WorkflowError> {
+pub fn finish_worktree_summary(
+    options: FinishOptions<'_>,
+    quiet_stdout: bool,
+) -> Result<FinishSummary, WorkflowError> {
     let toplevel = resolve_primary_repo_root(options.repo_root)?;
     let common_dir = resolve_git_common_dir(Some(&toplevel))?;
     let repo_name = resolve_repo_name(&toplevel);
@@ -110,11 +120,12 @@ pub fn finish_worktree(options: FinishOptions<'_>) -> Result<(), WorkflowError> 
     hook_env.insert("CLAW_WORKTREE_PATH".to_string(), slot.path.clone());
 
     // 1. Run pre_finish hook (abort on failure unless force is true)
-    run_pre_finish_hook(
+    run_pre_finish_hook_with_output(
         config.hooks.pre_finish.as_deref(),
         &worktree_path,
         &hook_env,
         options.force,
+        quiet_stdout,
     )?;
 
     // 2. Verify primary working tree is clean before merging
@@ -133,6 +144,7 @@ pub fn finish_worktree(options: FinishOptions<'_>) -> Result<(), WorkflowError> 
     delete_branch(&toplevel, &slot.branch, false)?;
 
     // Teardown remote branch if published and not opted out
+    let mut remote_deleted = false;
     if !options.keep_remote {
         let remote = config.remote().unwrap_or("origin");
         let remotes = git_get_remotes(&toplevel).unwrap_or_default();
@@ -145,10 +157,13 @@ pub fn finish_worktree(options: FinishOptions<'_>) -> Result<(), WorkflowError> 
                             slot.branch, remote, e
                         ));
                     } else {
-                        print_success(format!(
-                            "Remote branch '{}' deleted from '{}'",
-                            slot.branch, remote
-                        ));
+                        remote_deleted = true;
+                        if !quiet_stdout {
+                            print_success(format!(
+                                "Remote branch '{}' deleted from '{}'",
+                                slot.branch, remote
+                            ));
+                        }
                     }
                 }
                 Ok(false) => {}
@@ -170,7 +185,12 @@ pub fn finish_worktree(options: FinishOptions<'_>) -> Result<(), WorkflowError> 
     drop(_lock);
 
     // 7. Run post_finish hook
-    let _ = run_post_finish_hook(config.hooks.post_finish.as_deref(), &toplevel, &hook_env);
+    let _ = run_post_finish_hook_with_output(
+        config.hooks.post_finish.as_deref(),
+        &toplevel,
+        &hook_env,
+        quiet_stdout,
+    );
 
     // Record target primary root for shell auto-cd integration
     let _ = std::fs::write(
@@ -178,12 +198,43 @@ pub fn finish_worktree(options: FinishOptions<'_>) -> Result<(), WorkflowError> 
         toplevel.to_string_lossy().as_bytes(),
     );
 
-    print_success(format!(
-        "Worktree '{}' (Slot {}) successfully merged into '{}' and cleaned up",
-        slot.name,
-        slot.id,
-        config.main_branch()
-    ));
+    if !quiet_stdout {
+        print_success(format!(
+            "Worktree '{}' (Slot {}) successfully merged into '{}' and cleaned up",
+            slot.name,
+            slot.id,
+            config.main_branch()
+        ));
+    }
 
-    Ok(())
+    Ok(FinishSummary {
+        name: slot.name,
+        branch: slot.branch,
+        target_branch: config.main_branch().to_string(),
+        slot_id: Some(slot.id),
+        primary_root: toplevel.to_string_lossy().to_string(),
+        remote_deleted,
+    })
+}
+
+/// Orchestrates finishing and merging a worktree following the AD-8 teardown order.
+///
+/// # Example
+///
+/// ```no_run
+/// use std::path::Path;
+/// use git_claw::workflow::{finish_worktree, FinishOptions};
+///
+/// # fn run() -> Result<(), git_claw::workflow::WorkflowError> {
+/// finish_worktree(FinishOptions {
+///     name: Some("login"),
+///     force: false,
+///     keep_remote: false,
+///     repo_root: Some(Path::new(".")),
+/// })?;
+/// # Ok(())
+/// # }
+/// ```
+pub fn finish_worktree(options: FinishOptions<'_>) -> Result<(), WorkflowError> {
+    finish_worktree_summary(options, false).map(|_| ())
 }

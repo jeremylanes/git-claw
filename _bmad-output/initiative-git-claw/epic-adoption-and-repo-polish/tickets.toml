@@ -1,0 +1,46 @@
+# tickets.toml — epic-adoption-and-repo-polish child stories
+# Managed by BMad Method. Order below is build order.
+
+[[entry]]
+id = 1
+type = "story"
+title = "Structured --json CLI output for AI agents and scripts"
+description = "Add --json support to list, start (feature/bugfix/hotfix/spike), finish, publish, spike drop, and init workflows so AI coding agents and scripts can consume deterministic structured payloads without parsing ASCII tables."
+verify = "Unit and integration tests execute commands with --json, parse stdout via serde_json, verify expected fields, and verify default human output remains unchanged."
+covers = ["FR-6"]
+after = []
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 2
+type = "story"
+title = "Interactive prompts and overwrite guard in git claw init"
+description = "Update git claw init so omitting --yes runs interactive prompts (main branch confirmation, existing .git-claw.toml overwrite confirmation, optional Docker/environment summary confirmation) via testable reader/writer abstractions, while --yes preserves zero-prompt automation."
+verify = "Unit and integration tests verify overwrite cancellation vs confirmation, branch customization via simulated BufRead input, and non-interactive --yes behavior."
+covers = ["FR-10"]
+after = [1]
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 3
+type = "story"
+title = "Package metadata alignment and cross-platform release workflow"
+description = "Align Cargo.toml license to GPL-2.0-only matching LICENSE and README.md, clean CHANGELOG.md typos, and add .github/workflows/release.yml to build prebuilt binaries and SHA256 checksums for Linux, macOS, and Windows on v* tags."
+verify = "Cargo.toml license equals GPL-2.0-only, CHANGELOG.md typos are fixed, .github/workflows/release.yml parses cleanly, and cargo check/test pass."
+covers = ["FR-15"]
+after = []
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 4
+type = "story"
+title = "Documentation sync, emoji removal, and AI agent SKILL.md"
+description = "Synchronize README.md, CHEATSHEET.md, and docs/index.html with current TOML schema and CLI features ([docker], [files], [environment], test DB isolation, shell-hook for fish/bash/zsh, --cd, --json, Herdr, prebuilt binaries), remove all emojis, and add skills/git-claw/SKILL.md."
+verify = "Manual & grep audit confirm zero emojis in docs, exact alignment with src/cli/args.rs and src/core/config.rs, valid HTML/links, and presence of skills/git-claw/SKILL.md."
+covers = ["FR-15"]
+after = [1, 2, 3]
+hitl = false
+risk = "low"

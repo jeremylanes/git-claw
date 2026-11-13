@@ -3,13 +3,14 @@
 //! Scans repository for environment files, compose files, and port variables,
 //! and generates a tailored `.git-claw.toml`.
 
-use crate::cli::output::print_success;
+use crate::cli::output::{print_success, InitSummary};
 use crate::core::config::{DockerConfig, EnvironmentConfig};
 use crate::infra::docker::parse_compose_services;
-use crate::infra::git::resolve_toplevel;
+use crate::infra::git::{git_detect_default_branch, resolve_toplevel};
 use crate::workflow::error::WorkflowError;
 use std::collections::BTreeMap;
 use std::fs;
+use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 
 /// Options for repository initialization.
@@ -427,21 +428,155 @@ pub fn generate_init_toml(
     toml
 }
 
-/// Runs the repository initialization workflow.
+fn prompt_yes_no<R: BufRead, W: Write>(
+    reader: &mut R,
+    writer: &mut W,
+    prompt: &str,
+    default_yes: bool,
+) -> Result<bool, WorkflowError> {
+    writer.write_all(prompt.as_bytes())?;
+    writer.flush()?;
+
+    let mut input = String::new();
+    let bytes = reader.read_line(&mut input)?;
+    if bytes == 0 {
+        return Ok(false);
+    }
+
+    let normalized = input.trim().to_ascii_lowercase();
+    if normalized.is_empty() {
+        return Ok(default_yes);
+    }
+    Ok(matches!(normalized.as_str(), "y" | "yes"))
+}
+
+fn prompt_with_default<R: BufRead, W: Write>(
+    reader: &mut R,
+    writer: &mut W,
+    prompt: &str,
+    default_value: &str,
+) -> Result<String, WorkflowError> {
+    writer.write_all(prompt.as_bytes())?;
+    writer.flush()?;
+
+    let mut input = String::new();
+    let bytes = reader.read_line(&mut input)?;
+    if bytes == 0 {
+        return Ok(default_value.to_string());
+    }
+
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        Ok(default_value.to_string())
+    } else {
+        Ok(trimmed.to_string())
+    }
+}
+
+fn write_init_preview<W: Write>(
+    writer: &mut W,
+    main_branch: &str,
+    ports: &BTreeMap<String, u16>,
+    env_files: &[String],
+    environment: &EnvironmentConfig,
+    cache_dirs: &[String],
+    docker: &DockerConfig,
+) -> Result<(), WorkflowError> {
+    let ports_summary = if ports.is_empty() {
+        "none".to_string()
+    } else {
+        ports
+            .iter()
+            .map(|(k, v)| format!("{}={}", k, v))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    let files_summary = if env_files.is_empty() {
+        "none".to_string()
+    } else {
+        env_files.join(", ")
+    };
+    let env_summary = match (&environment.r#type, &environment.name) {
+        (Some(t), Some(n)) => format!("{} ({})", t, n),
+        (Some(t), None) => t.clone(),
+        (None, Some(n)) => n.clone(),
+        (None, None) => "none".to_string(),
+    };
+    let cache_summary = if cache_dirs.is_empty() {
+        "none".to_string()
+    } else {
+        cache_dirs.join(", ")
+    };
+    let compose_summary = docker.compose_file.as_deref().unwrap_or("none");
+
+    writeln!(writer, "Detected configuration:")?;
+    writeln!(writer, "  Main branch: {}", main_branch)?;
+    writeln!(writer, "  Ports: {}", ports_summary)?;
+    writeln!(writer, "  Copy files: {}", files_summary)?;
+    writeln!(writer, "  Environment: {}", env_summary)?;
+    writeln!(writer, "  Cache directories: {}", cache_summary)?;
+    writeln!(writer, "  Docker compose: {}", compose_summary)?;
+    Ok(())
+}
+
+/// Runs repository initialization using explicit reader and writer streams for interactive prompts.
 ///
-/// # Example
+/// When `options.yes` is `false`, guards against silently overwriting an existing `.git-claw.toml`,
+/// prompts for the main branch name, displays detected settings, and asks final confirmation.
+/// When `options.yes` is `true`, reads zero bytes from `reader` and writes `.git-claw.toml` directly.
 ///
-/// ```
-/// use git_claw::workflow::init::{run_init_workflow, InitOptions};
+/// # Examples
+///
+/// ```no_run
+/// use git_claw::workflow::init::{run_init_workflow_with_io, InitOptions};
+/// use std::io::Cursor;
 /// use tempfile::tempdir;
 ///
+/// # fn run() -> Result<(), git_claw::workflow::WorkflowError> {
 /// let dir = tempdir().unwrap();
-/// let opts = InitOptions { yes: true, repo_root: Some(dir.path()) };
-/// let _ = run_init_workflow(opts);
+/// let mut input = Cursor::new(b"main\ny\n");
+/// let mut output = Vec::new();
+/// let summary = run_init_workflow_with_io(
+///     InitOptions { yes: false, repo_root: Some(dir.path()) },
+///     &mut input,
+///     &mut output,
+/// )?;
+/// assert_eq!(summary.main_branch, "main");
+/// # Ok(())
+/// # }
 /// ```
-pub fn run_init_workflow(options: InitOptions) -> Result<PathBuf, WorkflowError> {
+pub fn run_init_workflow_with_io<R: BufRead, W: Write>(
+    options: InitOptions<'_>,
+    reader: &mut R,
+    writer: &mut W,
+) -> Result<InitSummary, WorkflowError> {
     let root = resolve_toplevel(options.repo_root)?;
     let target = root.join(".git-claw.toml");
+    let detected_branch = git_detect_default_branch(&root);
+
+    let main_branch = if options.yes {
+        detected_branch
+    } else {
+        if target.exists()
+            && !prompt_yes_no(
+                reader,
+                writer,
+                ".git-claw.toml already exists. Overwrite? [y/N]: ",
+                false,
+            )?
+        {
+            return Err(WorkflowError::ExecutionFailed(
+                "Initialization aborted: existing .git-claw.toml was not overwritten".to_string(),
+            ));
+        }
+
+        prompt_with_default(
+            reader,
+            writer,
+            &format!("Main branch [{}]: ", detected_branch),
+            &detected_branch,
+        )?
+    };
 
     let env_files = scan_env_files(&root);
     let mut ports = extract_ports_from_env_files(&root, &env_files);
@@ -455,8 +590,25 @@ pub fn run_init_workflow(options: InitOptions) -> Result<PathBuf, WorkflowError>
         DockerConfig::default()
     };
 
+    if !options.yes {
+        write_init_preview(
+            writer,
+            &main_branch,
+            &ports,
+            &env_files,
+            &environment,
+            &cache_dirs,
+            &docker,
+        )?;
+        if !prompt_yes_no(reader, writer, "Write .git-claw.toml? [Y/n]: ", true)? {
+            return Err(WorkflowError::ExecutionFailed(
+                "Initialization aborted by user".to_string(),
+            ));
+        }
+    }
+
     let content = generate_init_toml(
-        "main",
+        &main_branch,
         &ports,
         &env_files,
         &docker,
@@ -465,18 +617,170 @@ pub fn run_init_workflow(options: InitOptions) -> Result<PathBuf, WorkflowError>
     );
     fs::write(&target, content)?;
 
+    Ok(InitSummary {
+        config_path: target.to_string_lossy().to_string(),
+        main_branch,
+        ports,
+        copy_files: env_files,
+        environment_type: environment.r#type,
+        compose_file: docker.compose_file,
+    })
+}
+
+/// Runs repository initialization and returns structured configuration metadata.
+///
+/// Rejects `json == true` unless `options.yes == true`, ensuring automation never hangs on prompts.
+///
+/// # Examples
+///
+/// ```no_run
+/// use git_claw::workflow::init::{run_init_workflow_summary, InitOptions};
+/// use tempfile::tempdir;
+///
+/// # fn run() -> Result<(), git_claw::workflow::WorkflowError> {
+/// let dir = tempdir().unwrap();
+/// let summary = run_init_workflow_summary(
+///     InitOptions { yes: true, repo_root: Some(dir.path()) },
+///     true,
+/// )?;
+/// assert_eq!(summary.main_branch, "main");
+/// # Ok(())
+/// # }
+/// ```
+pub fn run_init_workflow_summary(
+    options: InitOptions<'_>,
+    json: bool,
+) -> Result<InitSummary, WorkflowError> {
+    if json && !options.yes {
+        return Err(WorkflowError::ExecutionFailed(
+            "Cannot use --json with interactive init; pass --yes (-y) for non-interactive execution".to_string(),
+        ));
+    }
+
+    if json {
+        let mut empty = std::io::empty();
+        let mut sink = std::io::sink();
+        return run_init_workflow_with_io(options, &mut empty, &mut sink);
+    }
+
+    let stdin = std::io::stdin();
+    let mut locked = stdin.lock();
+    let mut stdout = std::io::stdout();
+    let summary = run_init_workflow_with_io(options, &mut locked, &mut stdout)?;
     print_success(format!(
         "Initialized .git-claw.toml configuration at {}",
-        target.display()
+        summary.config_path
     ));
+    Ok(summary)
+}
 
-    Ok(target)
+/// Runs the repository initialization workflow.
+///
+/// # Example
+///
+/// ```
+/// use git_claw::workflow::init::{run_init_workflow, InitOptions};
+/// use tempfile::tempdir;
+///
+/// let dir = tempdir().unwrap();
+/// let opts = InitOptions { yes: true, repo_root: Some(dir.path()) };
+/// let _ = run_init_workflow(opts);
+/// ```
+pub fn run_init_workflow(options: InitOptions) -> Result<PathBuf, WorkflowError> {
+    run_init_workflow_summary(options, false).map(|s| PathBuf::from(s.config_path))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Cursor;
     use tempfile::tempdir;
+
+    fn init_git_repo(branch: &str) -> tempfile::TempDir {
+        let dir = tempdir().expect("tempdir");
+        let output = std::process::Command::new("git")
+            .args(["init", "-b", branch])
+            .current_dir(dir.path())
+            .output()
+            .expect("git init");
+        assert!(output.status.success());
+        dir
+    }
+
+    #[test]
+    fn test_init_with_io_overwrite_guard_and_custom_branch() {
+        let dir = init_git_repo("main");
+        let cfg = dir.path().join(".git-claw.toml");
+        fs::write(&cfg, "# existing\n").expect("write existing");
+
+        let mut decline = Cursor::new(b"n\n".as_slice());
+        let mut out = Vec::new();
+        let err = run_init_workflow_with_io(
+            InitOptions {
+                yes: false,
+                repo_root: Some(dir.path()),
+            },
+            &mut decline,
+            &mut out,
+        );
+        assert!(err.is_err());
+        assert_eq!(fs::read_to_string(&cfg).unwrap(), "# existing\n");
+
+        let mut accept = Cursor::new(b"y\ndevelop\ny\n".as_slice());
+        let mut out2 = Vec::new();
+        let summary = run_init_workflow_with_io(
+            InitOptions {
+                yes: false,
+                repo_root: Some(dir.path()),
+            },
+            &mut accept,
+            &mut out2,
+        )
+        .expect("interactive init succeeds");
+        assert_eq!(summary.main_branch, "develop");
+        assert!(fs::read_to_string(&cfg)
+            .unwrap()
+            .contains("main_branch = \"develop\""));
+    }
+
+    #[test]
+    fn test_init_with_io_yes_skips_stdin_reads() {
+        let dir = init_git_repo("main");
+        let cfg = dir.path().join(".git-claw.toml");
+        fs::write(&cfg, "# old\n").expect("write old");
+
+        let mut unread = Cursor::new(b"n\n".as_slice());
+        let mut out = Vec::new();
+        let summary = run_init_workflow_with_io(
+            InitOptions {
+                yes: true,
+                repo_root: Some(dir.path()),
+            },
+            &mut unread,
+            &mut out,
+        )
+        .expect("yes overwrites without reading stdin");
+        assert_eq!(unread.position(), 0);
+        assert!(out.is_empty());
+        assert_eq!(summary.main_branch, "main");
+    }
+
+    #[test]
+    fn test_init_with_io_final_confirmation_decline() {
+        let dir = init_git_repo("main");
+        let mut decline = Cursor::new(b"\nn\n".as_slice());
+        let mut out = Vec::new();
+        let res = run_init_workflow_with_io(
+            InitOptions {
+                yes: false,
+                repo_root: Some(dir.path()),
+            },
+            &mut decline,
+            &mut out,
+        );
+        assert!(res.is_err());
+        assert!(!dir.path().join(".git-claw.toml").exists());
+    }
 
     #[test]
     fn test_scan_environment_pyenv_and_venv() {

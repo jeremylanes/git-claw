@@ -3,7 +3,7 @@ title: 'Automatic Navigation to Primary Repository on Finish (auto-cd)'
 type: 'feature'
 ticket: 16
 created: '2026-10-18'
-status: 'ready-to-build'
+status: 'built'
 route: 'full'
 risk: 'low'
 review: 'quick'

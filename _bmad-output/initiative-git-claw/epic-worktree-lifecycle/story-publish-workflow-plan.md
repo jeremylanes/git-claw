@@ -1,9 +1,9 @@
 ---
 title: 'Remote worktree publish workflow (git claw [feature|bugfix|hotfix] publish [name])'
 type: 'feature'
-ticket: 24
+ticket: 8
 created: '2026-10-10'
-status: 'ready-to-build'
+status: 'built'
 route: 'full'
 risk: 'low'
 review: 'quick'

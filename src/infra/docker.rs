@@ -4,6 +4,7 @@
 //! collisions and configure shared service/network interop.
 
 use crate::core::config::DockerConfig;
+use crate::infra::env_file::format_slot_test_db_name;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -426,10 +427,7 @@ pub fn generate_docker_compose_override(
         (Vec::new(), Vec::new(), Vec::new())
     };
 
-    let test_db = slot_id.map(|id| {
-        let db_base = repo_name.unwrap_or("db").replace('-', "_");
-        format!("test_{}_slot_{}", db_base, id)
-    });
+    let test_db = slot_id.map(|id| format_slot_test_db_name(repo_name.unwrap_or("db"), id));
     let extra_env: Vec<(&str, &str)> = if let Some(ref db) = test_db {
         vec![
             ("TEST_DATABASE_NAME", db.as_str()),

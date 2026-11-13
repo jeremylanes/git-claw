@@ -133,6 +133,83 @@ after = [11]
 hitl = false
 risk = "low"
 
+[[entry]]
+id = 13
+type = "story"
+title = "Python / uv project version synchronization on release tag (git claw tag <version>)"
+description = "Extends workflow/tag.rs to detect pyproject.toml and project.toml, update PEP 621 / Poetry version fields, refresh uv.lock when present, commit, and tag."
+verify = "Integration test verifies pyproject.toml version sync and release tag commit."
+covers = ["FR-9"]
+after = [12]
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 14
+type = "story"
+title = "Automated Conventional Commit Tagging and Changelog Generation (git claw tag)"
+description = "Makes version argument optional on git claw tag, infers SemVer bump from Conventional Commits since last tag, generates CHANGELOG.md updates, bumps project manifests, and tags."
+verify = "Integration test runs git claw tag without version arg and verifies version bump, CHANGELOG.md generation, and annotated tag."
+covers = ["FR-9"]
+after = [13]
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 15
+type = "bug"
+title = "Primary Repository Root Resolution from Worktree Context"
+description = "Implements resolve_primary_repo_root via git rev-parse --git-common-dir so commands run from inside a linked worktree resolve the primary repository cleanly."
+verify = "Integration test executes git claw finish from inside a linked worktree directory and succeeds without worktree branch checkout conflicts."
+covers = ["FR-4"]
+after = [6]
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 16
+type = "story"
+title = "Automatic Navigation to Primary Repository on Finish (auto-cd)"
+description = "Extends git claw cd and shell-hook (bash, zsh, fish) so finishing or dropping a worktree automatically returns the active shell to the primary repository root."
+verify = "Tests validate fish/bash/zsh shell-hook output and cd resolution for main/master/root."
+covers = ["FR-8"]
+after = [15]
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 17
+type = "story"
+title = "Opt-in Navigation on Worktree Start (--cd)"
+description = "Adds --cd flag to start subcommands so git claw <type> start stays in the primary repository by default (ideal with Herdr) and switches directory only when --cd is explicitly passed."
+verify = "Tests confirm CLI parsing of --cd and bash/zsh/fish shell-hook behavior with and without --cd."
+covers = ["FR-8"]
+after = [16]
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 18
+type = "story"
+title = "Automatic Environment Detection and Propagation (pyenv, uv, venv)"
+description = "Detects .python-version, .venv, venv, poetry, and .nvmrc during git claw init and propagates environment activation/files into created worktrees."
+verify = "Tests validate detection in init and file copying / symlinking during worktree start."
+covers = ["FR-10", "FR-11"]
+after = [17]
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 19
+type = "story"
+title = "Multi-Worktree Test Database Isolation per Slot"
+description = "Injects slot-scoped TEST_DATABASE_NAME and CLAW_TEST_DB into .env.worktree and updates copied .env files in-place so parallel test suites in multiple worktrees do not collide on test databases."
+verify = "Integration tests verify Slot 1 and Slot 2 receive distinct TEST_DATABASE_NAME values and preserve existing variables."
+covers = ["FR-3", "FR-11"]
+after = [18]
+hitl = false
+risk = "medium"
+
 
 
 

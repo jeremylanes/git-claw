@@ -1,3 +1,14 @@
+---
+title: 'Multi-Worktree Test Database Isolation per Slot'
+type: 'feature'
+ticket: 19
+created: '2026-10-23'
+status: 'built'
+route: 'full'
+risk: 'medium'
+review: 'quick'
+---
+
 # Story Plan: Multi-Worktree Test Database Isolation per Slot
 
 ## Ticket 19

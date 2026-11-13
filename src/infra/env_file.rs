@@ -77,6 +77,23 @@ pub fn extract_base_db(val: &str, fallback: Option<&str>) -> String {
     }
 }
 
+/// Formats the deterministic isolated test database name for a given base name and slot ID.
+///
+/// Hyphens in `base_name` are replaced with underscores so the resulting identifier
+/// is valid across PostgreSQL, MySQL, and SQLite naming conventions.
+///
+/// # Examples
+///
+/// ```
+/// use git_claw::infra::env_file::format_slot_test_db_name;
+///
+/// assert_eq!(format_slot_test_db_name("my-repo", 2), "test_my_repo_slot_2");
+/// ```
+pub fn format_slot_test_db_name(base_name: &str, slot_id: u32) -> String {
+    let normalized = base_name.replace('-', "_");
+    format!("test_{}_slot_{}", normalized, slot_id)
+}
+
 /// Generates `.env.worktree` inside the worktree directory.
 ///
 /// Injects slot ID, worktree name and path, Docker Compose project name,
@@ -124,8 +141,7 @@ pub fn write_env_worktree(
     lines.push(format!("CLAW_WORKTREE_PATH={}", worktree_path.display()));
     lines.push(format!("COMPOSE_PROJECT_NAME={}", compose_project));
 
-    let default_db_name = repo_name.replace('-', "_");
-    let test_db_name = format!("test_{}_slot_{}", default_db_name, slot_id);
+    let test_db_name = format_slot_test_db_name(repo_name, slot_id);
     lines.push(format!("TEST_DATABASE_NAME={}", test_db_name));
     lines.push(format!("CLAW_TEST_DB={}", test_db_name));
 

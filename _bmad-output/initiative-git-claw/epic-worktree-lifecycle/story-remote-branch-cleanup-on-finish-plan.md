@@ -3,7 +3,7 @@ title: 'Remote branch teardown on finish (git claw finish [--keep-remote])'
 type: 'feature'
 ticket: 9
 created: '2026-10-10'
-status: 'ready-to-build'
+status: 'built'
 route: 'full'
 risk: 'low'
 review: 'quick'

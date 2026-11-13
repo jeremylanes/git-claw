@@ -563,3 +563,69 @@ pub fn git_get_commits_since(repo_root: &Path, tag: Option<&str>) -> Result<Vec<
 
     Ok(commits)
 }
+
+/// Detects the repository's default integration branch (`main`, `master`, or current unborn branch).
+///
+/// Falls back to `"main"` if detection fails or `HEAD` is detached without `main`/`master`.
+///
+/// # Examples
+///
+/// ```no_run
+/// use std::path::Path;
+/// use git_claw::infra::git::git_detect_default_branch;
+///
+/// let branch = git_detect_default_branch(Path::new("."));
+/// assert!(!branch.is_empty());
+/// ```
+pub fn git_detect_default_branch(repo_root: &Path) -> String {
+    let head_branch = Command::new("git")
+        .current_dir(repo_root)
+        .args(["symbolic-ref", "--short", "HEAD"])
+        .output()
+        .ok()
+        .filter(|out| out.status.success())
+        .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
+        .filter(|s| !s.is_empty());
+
+    if let Some(ref branch) = head_branch {
+        if branch == "main" || branch == "master" {
+            return branch.clone();
+        }
+    }
+
+    if git_branch_exists(repo_root, "main").unwrap_or(false) {
+        return "main".to_string();
+    }
+    if git_branch_exists(repo_root, "master").unwrap_or(false) {
+        return "master".to_string();
+    }
+
+    head_branch.unwrap_or_else(|| "main".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_git_detect_default_branch_variants() {
+        let dir = tempdir().expect("tempdir");
+        let init = Command::new("git")
+            .args(["init", "-b", "master"])
+            .current_dir(dir.path())
+            .output()
+            .expect("git init");
+        assert!(init.status.success());
+        assert_eq!(git_detect_default_branch(dir.path()), "master");
+
+        let dir_trunk = tempdir().expect("tempdir");
+        let init_trunk = Command::new("git")
+            .args(["init", "-b", "trunk"])
+            .current_dir(dir_trunk.path())
+            .output()
+            .expect("git init trunk");
+        assert!(init_trunk.status.success());
+        assert_eq!(git_detect_default_branch(dir_trunk.path()), "trunk");
+    }
+}

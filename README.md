@@ -2,53 +2,80 @@
   <img src="assets/logo.svg" alt="git-claw logo" width="140" height="140" />
 </p>
 
-# git-claw 🦀
+# git-claw
 
 > Deterministic Git Worktrees orchestrator for concurrent human and AI development.
 
 [![Crates.io](https://img.shields.io/crates/v/git-claw?style=flat-square&color=orange)](https://crates.io/crates/git-claw)
 [![CI Status](https://img.shields.io/github/actions/workflow/status/jeremylanes/git-claw/ci.yml?branch=main&style=flat-square)](https://github.com/jeremylanes/git-claw/actions)
-[![License: GPL-2.0](https://img.shields.io/badge/License-GPL--2.0-blue?style=flat-square)](LICENSE)
+[![License: GPL-2.0-only](https://img.shields.io/badge/License-GPL--2.0--only-blue?style=flat-square)](LICENSE)
 [![Cheatsheet](https://img.shields.io/badge/Docs-Cheatsheet-blueviolet?style=flat-square)](CHEATSHEET.md)
 
 ---
 
 ## Overview
 
-When human developers or autonomous AI agents work across multiple Git branches in parallel, they frequently encounter workspace friction: local port collisions (`Address already in use`), container naming conflicts, and redundant dependency installations.
+When developers or autonomous AI coding agents work on multiple Git branches concurrently, traditional in-place branch switching breaks down: local servers collide on ports (`Address already in use`), Docker Compose containers fight over fixed `container_name` values, parallel test runners overwrite each other's databases, and dependencies have to be reinstalled repeatedly.
 
-`git-claw` eliminates this overhead through deterministic isolation:
+`git-claw` eliminates this friction through deterministic workspace isolation:
 
-- **Deterministic Slot IDs**: Assigns a sequential numeric slot (`1, 2, 3...`) per active worktree.
-- **Collision-Free Port Offsets**: Computes ports deterministically (`Effective Port = Base Port + Slot ID`).
-- **Environment Injection**: Generates an isolated `.env.worktree` containing active slot and port definitions.
-- **Shared Build Caches**: Reuses dependency directories (`node_modules`, `target`, `.venv`) via symlinks.
-- **Auto-Healing Garbage Collection**: Detects removed directories and reclaims slot allocations automatically.
-- **Release Automation**: Infers SemVer versioning and updates `CHANGELOG.md` via Conventional Commits.
-- **Zero Lock-in**: Works out of the box in any Git repository with no mandatory configuration.
+- **Deterministic Slot IDs**: Assigns the lowest available sequential numeric slot (`1, 2, 3...`) per active worktree under an advisory file lock.
+- **Collision-Free Port Offsets**: Computes shifted ports deterministically (`Effective Port = Base Port + Slot ID`) while preserving shared client service ports.
+- **Per-Slot Test Database Isolation**: Injects `TEST_DATABASE_NAME` and `CLAW_TEST_DB` (`test_<db>_slot_<id>`) into `.env.worktree`, copied `.env` files, and Docker Compose overrides.
+- **Docker Compose Interoperability**: Generates `docker-compose.override.yml` automatically, resetting fixed container names (`container_name: !reset`), attaching shared networks, and disabling shared services with `scale: 0`.
+- **Environment Auto-Propagation**: Detects and propagates `pyenv` (`.python-version` + `PYENV_VERSION`), `uv`/`venv` (`.venv` symlink + `VIRTUAL_ENV`/`PATH`), `.node-version`, `.nvmrc`, and `.envrc`.
+- **Shared Build Caches**: Symlinks heavy dependency directories (`node_modules`, `target`, `.venv`) unless `--isolated` is passed.
+- **Machine-Readable `--json` Output**: Emits structured JSON payloads across lifecycle and inspection commands for AI agents and scripts.
+- **Auto-Healing Garbage Collection**: Detects manually deleted worktree directories and reclaims stale slots automatically.
+- **Release Automation**: Infers SemVer bumps and updates `CHANGELOG.md` and project manifests from Conventional Commits.
 
-**Reference Guide:** Consult the [Markdown Cheatsheet](CHEATSHEET.md) or the live visual [HTML Cheatsheet](https://jeremylanes.github.io/git-claw/).
+**Reference Guide:** Consult the [Markdown Cheatsheet](CHEATSHEET.md) or the visual [HTML Cheatsheet](https://jeremylanes.github.io/git-claw/).
 
 ---
 
 ## Installation
 
+### Prebuilt Binaries (No Rust Toolchain Required)
+
+Download the archive for your platform from [GitHub Releases](https://github.com/jeremylanes/git-claw/releases), verify the checksum against `SHA256SUMS.txt`, and place `git-claw` on your `PATH`:
+
+```bash
+# Example (Linux x86_64 static musl build):
+curl -LO https://github.com/jeremylanes/git-claw/releases/latest/download/git-claw-v0.5.0-x86_64-unknown-linux-musl.tar.gz
+curl -LO https://github.com/jeremylanes/git-claw/releases/latest/download/SHA256SUMS.txt
+sha256sum --ignore-missing -c SHA256SUMS.txt
+tar -xzf git-claw-v0.5.0-x86_64-unknown-linux-musl.tar.gz
+sudo install -m 0755 git-claw /usr/local/bin/git-claw
+```
+
+Available release targets:
+- `x86_64-unknown-linux-gnu` (`.tar.gz`)
+- `x86_64-unknown-linux-musl` (`.tar.gz`, static binary)
+- `aarch64-apple-darwin` (`.tar.gz`, Apple Silicon)
+- `x86_64-apple-darwin` (`.tar.gz`, Intel macOS)
+- `x86_64-pc-windows-msvc` (`.zip`, Windows)
+
 ### Via Cargo
 
 ```bash
-# From crates.io (recommended):
+# Using cargo-binstall (fetches prebuilt binary):
+cargo binstall git-claw
+
+# Compile and install from crates.io:
 cargo install git-claw
 
-# Or from source:
+# Or build from local source:
 cargo install --path .
 ```
 
 Verify installation:
+
 ```bash
 git-claw --version
 ```
 
-Because the binary is named `git-claw`, Git automatically registers it as a native subcommand:
+Because the binary is named `git-claw`, Git automatically exposes it as a native subcommand:
+
 ```bash
 git claw --help
 ```
@@ -57,23 +84,27 @@ git claw --help
 
 ## Quickstart
 
-Start a new feature worktree in an existing repository with zero setup:
-
 ```bash
-# 1. Create an isolated worktree for your feature
+# 1. Inspect project files and generate .git-claw.toml (interactive; pass -y to accept defaults)
+git claw init
+
+# 2. Enable optional shell auto-cd integration (bash, zsh, or fish)
+eval "$(git claw shell-hook bash)"
+
+# 3. Create an isolated worktree (stays on main by default; pass --cd to jump into it)
 git claw feature start auth-flow
 
-# 2. Inspect active worktrees and assigned ports
+# 4. Inspect active slots, paths, and computed ports (human table or JSON)
 git claw list
+git claw list --json
 
-# 3. Open in your editor or run commands inside the workspace
-git claw open auth-flow
-git claw run auth-flow npm run dev
+# 5. Execute commands inside the worktree with .env.worktree injected
+git claw run auth-flow npm test
 
-# 4. Publish to remote with upstream tracking
+# 6. Publish to remote with upstream tracking
 git claw feature publish auth-flow
 
-# 5. Run verification tests, merge into main, and clean up
+# 7. Run pre_finish hooks, merge into main, delete local/remote branch, and free the slot
 git claw finish auth-flow
 ```
 
@@ -83,123 +114,181 @@ git claw finish auth-flow
 
 | Command | Description |
 |---|---|
-| `git claw init [-y]` | Initialize or update repository `.git-claw.toml` configuration |
-| `git claw list` | List all active worktrees, assigned slots, and computed ports |
-| `git claw feature start <name> [--cd]` | Create and checkout `feature/<name>` in an isolated worktree (use `--cd` to navigate into it) |
-| `git claw bugfix start <name> [--cd]` | Create and checkout `bugfix/<name>` in an isolated worktree (use `--cd` to navigate into it) |
-| `git claw hotfix start <name> [--cd]` | Create and checkout `hotfix/<name>` in an isolated worktree (use `--cd` to navigate into it) |
-| `git claw spike start <name> [--cd]` | Create a disposable experiment worktree (use `--cd` to navigate into it) |
-| `git claw spike drop <name>` | Delete a spike worktree and branch without merging (auto-navigates back to main) |
-| `git claw publish [<name>]` | Push worktree branch to remote with upstream tracking |
-| `git claw finish <name>` | Verify tests via hooks, merge into `main`, delete branch, and cleanup (auto-navigates back to main) |
-| `git claw open <name>` | Open worktree directory in default editor (`$EDITOR` or IDE) |
-| `git claw run <name> <cmd...>` | Execute a command inside the worktree with `.env.worktree` loaded |
-| `git claw cd <name>` | Output physical directory path for shell navigation |
-| `git claw tag` | Commitizen-style SemVer bump, changelog update, and annotated release tag |
-| `git claw tag <version>` | Create an explicit release tag and synchronize project manifests |
-| `git claw shell-hook [shell]` | Output shell integration functions (`bash`, `zsh`, `fish`) for auto-cd |
-| `git claw completion <shell>` | Generate shell completions (`fish`, `bash`, `zsh`, `powershell`, `elvish`) |
+| `git claw init [-y\|--yes] [--json]` | Interactively inspect repo and write `.git-claw.toml` (requires `--yes` with `--json`) |
+| `git claw list [--json]` | List active worktrees, assigned slots, computed ports, and HEAD commits |
+| `git claw feature start <name> [--isolated] [--cd] [--json]` | Create `feature/<name>` worktree (skip cache symlinks with `--isolated`, auto-cd with `--cd`) |
+| `git claw bugfix start <name> [--isolated] [--cd] [--json]` | Create `bugfix/<name>` worktree |
+| `git claw hotfix start <name> [--isolated] [--cd] [--json]` | Create `hotfix/<name>` worktree |
+| `git claw spike start <name> [--isolated] [--cd] [--json]` | Create disposable `spike/<name>` worktree |
+| `git claw spike drop <name> [--json]` | Delete a spike worktree and branch without merging |
+| `git claw feature\|bugfix\|hotfix publish [<name>] [--remote <r>] [--json]` | Push typed worktree branch with upstream tracking (inferred from cwd if omitted) |
+| `git claw publish [<name>] [--remote <r>] [--json]` | Shorthand to push any active worktree branch to remote |
+| `git claw finish [<name>] [--force] [-k\|--keep-remote] [--json]` | Run `pre_finish` hook, merge into `main_branch`, remove worktree/branch, and reclaim slot |
+| `git claw open [<name>]` | Open worktree directory in `$EDITOR`, `$VISUAL`, or `code` |
+| `git claw run [<name>] <command...>` | Execute a command inside the worktree with `.env.worktree` loaded |
+| `git claw cd [<name>]` | Print worktree directory path (supports `main`, `master`, `root`) |
+| `git claw tag [<version>]` | Infer SemVer bump and update `CHANGELOG.md`/manifests, or apply explicit tag |
+| `git claw shell-hook [shell]` | Output shell integration script (`bash`, `zsh`, `fish`) |
+| `git claw completion <shell>` | Output completion script (`bash`, `elvish`, `fish`, `powershell`, `zsh`; alias: `completions`) |
 
-For options and flags, append `--help` to any subcommand.
+Append `--help` to any command or subcommand for full details.
 
 ---
 
-## Configuration
+## Configuration (`.git-claw.toml`)
 
-To customize base ports, lifecycle hooks, or shared directories, add a `.git-claw.toml` at repository root:
+`git-claw` works with zero configuration out of the box (defaulting `worktree_root` to `~/.git-claw/worktrees/<repo_name>`). Configuration merges in order:
+
+1. Built-in defaults
+2. Global user config (`~/.git-claw/config.toml`, overrideable via `GIT_CLAW_GLOBAL_CONFIG`)
+3. Repository config (`.git-claw.toml`)
+
+Full `.git-claw.toml` schema (all keys match `src/core/config.rs`):
 
 ```toml
 [project]
-name = "my-service"
-main_branch = "main"                     # Default: "main"
-worktree_root = "../my-service-worktrees"# Default: "../<repo>-worktrees"
+main_branch = "main"                               # Default: "main"
+worktree_root = "~/.git-claw/worktrees/my-service" # Default: "~/.git-claw/worktrees/<repo_name>"
+remote = "origin"                                  # Optional default remote for publish/finish
 
 [ports]
-# Shifted deterministically by Slot ID (Slot 1 -> 8001, Slot 2 -> 8002)
+# Shifted deterministically: Effective Port = Base Port + Slot ID
+# Keys become PORT_<KEY> unless already PORT, PORT_*, or *_PORT
 web = 8000
-database = 5432
-redis = 6379
+APP_PORT = 3000
 
-[hooks]
-post_start = "bin/up"        # Triggered after worktree creation
-pre_finish = "cargo test"    # Blocks merge into main if exit code != 0
-post_finish = "bin/down"     # Triggered after worktree deletion
+[files]
+# Untracked files/directories copied into each new worktree.
+# Matched .env files get shifted ports, COMPOSE_PROJECT_NAME, TEST_DATABASE_NAME, and CLAW_TEST_DB.
+copy = [".env", "config/local.env"]
+
+[docker]
+compose_file = "docker-compose.yml"
+network = "my_app_network"
+shared_services = ["postgres", "redis"]
 
 [environment]
-type = "pyenv"                 # "pyenv", "uv", "venv", or "none"
-name = "my-env"                # Target virtualenv or Python version
-copy_files = [".python-version"]# Files to propagate into worktrees
+type = "pyenv"                     # e.g., "pyenv", "uv", "venv"
+name = "my-env"                    # Target pyenv version / virtualenv name
+copy_files = [".python-version"]   # Extra environment files to propagate
 
 [cache]
-strategy = "shared"            # "shared" (symlinks) or "isolated"
+strategy = "shared"                # "shared" (symlinks) or "isolated"
 directories = [".venv", "node_modules", "target"]
+
+[hooks]
+post_start = "bin/up"              # Receives CLAW_SLOT_ID, CLAW_WORKTREE_NAME, CLAW_WORKTREE_PATH, and ports
+pre_finish = "cargo test"          # Blocks merge if exit code != 0 (override with --force)
+post_finish = "bin/down"           # Runs in primary repository root after cleanup
 ```
 
 ---
 
-## Automated Releases & Conventional Commits
+## Docker Compose Interoperability & Test DB Isolation
 
-`git-claw` includes an automated release management engine inspired by Commitizen.
+When `[docker]` is configured (or discovered by `git claw init`), every new worktree receives a tailored `docker-compose.override.yml`:
 
-### Automatic Mode
-Run `git claw tag` on a clean `main` branch without arguments:
-```bash
-git claw tag
-```
-
-The tool automatically:
-1. Inspects commit history since the previous release tag.
-2. Infers the SemVer bump level from Conventional Commits:
-   - `feat!:` / `BREAKING CHANGE:` -> **MAJOR** (`0.3.0` -> `1.0.0`)
-   - `feat:` -> **MINOR** (`0.3.0` -> `0.4.0`)
-   - `fix:`, `perf:`, `chore:` -> **PATCH** (`0.3.0` -> `0.3.1`)
-3. Generates or updates `CHANGELOG.md` with categorized release notes.
-4. Synchronizes project manifests:
-   - **Rust**: `Cargo.toml` (and `Cargo.lock` via `cargo check`)
-   - **Python**: `pyproject.toml` or `project.toml` (and `uv.lock` via `uv lock`)
-5. Commits changes as `chore: release <version>` and creates an annotated Git tag on `main`.
-
-### Explicit Mode
-To specify an exact version override:
-```bash
-git claw tag v1.0.0
-```
+- **Container Name Neutralization**: Applies `container_name: !reset` so parallel worktree stacks never conflict on static container names.
+- **Shared Services**: Services listed in `shared_services` are neutralized with `scale: 0`, `restart: "no"`, and `entrypoint: ["true"]` so `depends_on` graphs remain valid while connecting to the single shared database/cache container. Client ports matching shared services (such as `DATABASE_PORT` or `REDIS_PORT`) are not shifted.
+- **External Networks & Volumes**: Internal networks and volumes from the base Compose file are marked `external: true`, and `[docker].network` is attached to non-shared services.
+- **Per-Slot Test Databases**: Both `.env.worktree` and non-shared Compose service `environment` blocks receive:
+  - `TEST_DATABASE_NAME=test_<db>_slot_<slot_id>`
+  - `CLAW_TEST_DB=test_<db>_slot_<slot_id>`
+  When `[files].copy` includes project `.env` files containing `DATABASE_NAME`, `POSTGRES_DB`, or `MYSQL_DATABASE`, `TEST_DATABASE_NAME` and `CLAW_TEST_DB` are also injected/rewritten in-place inside the copied file.
 
 ---
 
-## Shell Integration
+## Environment Auto-Propagation
 
-### Directory Navigation & Auto-CD
-`git-claw` includes shell integration so you can navigate worktrees effortlessly.
+During `git claw init` and worktree creation (`start`), `git-claw` automatically preserves runtime toolchains:
 
-- **On `start`**: by default, the active terminal session remains in the primary repository (`main`) because multiplexers like Herdr or modern IDEs open the worktree in their own context. Pass `--cd` to explicitly navigate your active shell into the worktree (`git claw feature start my-feat --cd`).
-- **On `finish` / `drop`**: when a worktree is merged or dropped, the shell automatically navigates back to the primary repository root (`main`) to avoid leaving you in a deleted directory.
+- **`pyenv`**: Detects `.python-version`, copies it into worktrees, and sets `PYENV_VERSION` in `.env.worktree`.
+- **`uv` / `.venv`**: Detects `uv.lock` or `.venv`, symlinks `.venv` (unless `--isolated` is set), and injects `VIRTUAL_ENV` and `PATH` into `.env.worktree`.
+- **Node.js & direnv**: Automatically copies `.nvmrc`, `.node-version`, and `.envrc` when present in the primary repository.
 
-Enable the shell hook in your shell config:
+---
+
+## Shell Integration & Auto-CD
+
+By default, `start` keeps your current terminal in the primary repository (`main`) so multiplexers or editors can open the worktree independently. Pass `--cd` when you want your active shell to enter the new worktree immediately.
+
+Enable the shell hook in your shell profile:
 
 ```bash
-# Fish (or placed in ~/.config/fish/conf.d/git_claw.fish):
-git-claw shell-hook fish | source
+# Bash (~/.bashrc):
+eval "$(git claw shell-hook bash)"
 
-# Bash:
-eval "$(git-claw shell-hook bash)"
+# Zsh (~/.zshrc):
+eval "$(git claw shell-hook zsh)"
 
-# Zsh:
-eval "$(git-claw shell-hook zsh)"
+# Fish (~/.config/fish/conf.d/git_claw.fish):
+git claw shell-hook fish | source
 ```
+
+With the hook active:
+- `git claw feature start my-feat --cd` creates the worktree and changes into it.
+- `git claw finish` or `git claw spike drop` automatically returns your shell to the primary repository root if your current directory was removed.
+- `git claw cd <name>` or `claw cd <name>` jumps directly to a worktree or `main`/`master`/`root`.
 
 ### Auto-Completion
+
 ```bash
 # Fish:
 mkdir -p ~/.config/fish/completions
 git claw completion fish > ~/.config/fish/completions/git-claw.fish
 
 # Bash:
+mkdir -p ~/.local/share/bash-completion/completions
 git claw completion bash > ~/.local/share/bash-completion/completions/git-claw
 
 # Zsh:
+mkdir -p ~/.zfunc
 git claw completion zsh > ~/.zfunc/_git-claw
 ```
+
+---
+
+## Herdr Integration
+
+When running inside [Herdr](https://github.com/jeremylanes/herdr) (`HERDR_ENV=1`), `git-claw` automatically triggers `herdr worktree open --cwd <repo_root> --branch <branch>` after starting a worktree. Set `CLAW_DISABLE_HERDR=1` to opt out.
+
+---
+
+## AI Coding Agents (`--json` & `SKILL.md`)
+
+`git-claw` provides first-class machine-readable output so AI coding agents never scrape ASCII tables or guess ports:
+
+- `git claw list --json` -> `{ "worktrees": [{ "slot_id", "name", "branch", "path", "ports", "status" }] }`
+- `git claw feature start <name> --json` -> `{ "slot_id", "name", "branch", "path", "ports", "test_database" }`
+- `git claw feature publish <name> --json` / `git claw publish <name> --json` -> `{ "name", "branch", "remote" }`
+- `git claw finish <name> --json` -> `{ "name", "branch", "target_branch", "slot_id", "primary_root", "remote_deleted" }`
+- `git claw spike drop <name> --json` -> `{ "name", "branch", "slot_id", "primary_root" }`
+- `git claw init --yes --json` -> `{ "config_path", "main_branch", "ports", "copy_files", "environment_type", "compose_file" }`
+
+See [skills/git-claw/SKILL.md](skills/git-claw/SKILL.md) for the full agent playbook. You can also drop this snippet into your repository's `AGENTS.md` or `CLAUDE.md`:
+
+```markdown
+## Parallel Worktrees (git-claw)
+- Never run `git checkout` or `git switch` in the primary repository for feature/bugfix work.
+- Inspect active slots first: `git claw list --json`.
+- Create an isolated worktree: `git claw feature start <kebab-name> --json` (or `bugfix` / `hotfix` / `spike`).
+- Work strictly inside the returned `path`, using the slot's allocated `ports` and `test_database` (also written to `.env.worktree`).
+- Execute project commands via `git claw run <kebab-name> <command...>`.
+- Merge and clean up when done: `git claw finish <kebab-name> --json` (or `git claw spike drop <kebab-name> --json` for throwaway spikes).
+```
+
+---
+
+## Automated Releases & Conventional Commits
+
+Run `git claw tag` on a clean `main` branch without arguments to perform a Commitizen-style release:
+
+1. Inspects commits since the previous tag (`feat!:` / `BREAKING CHANGE:` -> MAJOR, `feat:` -> MINOR, `fix:` / `perf:` / `chore:` -> PATCH).
+2. Prepends categorized release notes to `CHANGELOG.md`.
+3. Synchronizes versions in `Cargo.toml` (`Cargo.lock` via `cargo check`) or `pyproject.toml` / `project.toml` (`uv.lock` via `uv lock`).
+4. Commits `chore: release <version>` and creates an annotated Git tag on `main`.
+
+Pass an explicit version override with `git claw tag v1.0.0`.
 
 ---
 

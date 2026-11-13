@@ -201,3 +201,94 @@ fn test_init_workflow_scans_uv() {
     assert_eq!(config.environment.name, None);
     assert!(config.cache.directories.contains(&".venv".to_string()));
 }
+
+#[test]
+fn test_init_interactive_overwrite_declined_preserves_existing() {
+    let repo = setup_repo();
+    let repo_path = repo.path();
+    let config_path = repo_path.join(".git-claw.toml");
+    let sentinel = "# preserved\n[project]\nmain_branch = \"custom\"\n";
+    fs::write(&config_path, sentinel).expect("write sentinel config");
+
+    // Answering 'n' to overwrite prompt must abort without changing the file
+    let mut cmd_no = Command::cargo_bin("git-claw").expect("binary exists");
+    cmd_no
+        .arg("init")
+        .current_dir(repo_path)
+        .write_stdin("n\n")
+        .assert()
+        .failure();
+    assert_eq!(fs::read_to_string(&config_path).unwrap(), sentinel);
+
+    // Answering empty Enter (default [y/N]) must also abort without changing the file
+    let mut cmd_enter = Command::cargo_bin("git-claw").expect("binary exists");
+    cmd_enter
+        .arg("init")
+        .current_dir(repo_path)
+        .write_stdin("\n")
+        .assert()
+        .failure();
+    assert_eq!(fs::read_to_string(&config_path).unwrap(), sentinel);
+}
+
+#[test]
+fn test_init_interactive_overwrite_confirmed_and_custom_branch() {
+    let repo = setup_repo();
+    let repo_path = repo.path();
+    let config_path = repo_path.join(".git-claw.toml");
+    fs::write(&config_path, "# old config\n").expect("write old config");
+
+    let mut cmd = Command::cargo_bin("git-claw").expect("binary exists");
+    cmd.arg("init")
+        .current_dir(repo_path)
+        .write_stdin("y\ndevelop\n\n")
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("Overwrite? [y/N]:"))
+        .stdout(predicates::str::contains("Main branch [main]:"))
+        .stdout(predicates::str::contains("Write .git-claw.toml? [Y/n]:"))
+        .stdout(predicates::str::contains("Initialized .git-claw.toml"));
+
+    let config = Config::load_or_default(&config_path, "custom-repo").expect("parse config");
+    assert_eq!(config.main_branch(), "develop");
+}
+
+#[test]
+fn test_init_interactive_final_confirmation_declined_aborts() {
+    let repo = setup_repo();
+    let repo_path = repo.path();
+    let config_path = repo_path.join(".git-claw.toml");
+
+    let mut cmd = Command::cargo_bin("git-claw").expect("binary exists");
+    cmd.arg("init")
+        .current_dir(repo_path)
+        .write_stdin("\nn\n")
+        .assert()
+        .failure();
+
+    assert!(!config_path.exists());
+}
+
+#[test]
+fn test_init_interactive_detects_master_branch_default() {
+    let repo_dir = tempdir().expect("repo dir");
+    let repo_path = repo_dir.path();
+    let init = std::process::Command::new("git")
+        .args(["init", "-b", "master"])
+        .current_dir(repo_path)
+        .output()
+        .expect("git init master");
+    assert!(init.status.success());
+
+    let mut cmd = Command::cargo_bin("git-claw").expect("binary exists");
+    cmd.arg("init")
+        .current_dir(repo_path)
+        .write_stdin("\n\n")
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("Main branch [master]:"));
+
+    let config = Config::load_or_default(&repo_path.join(".git-claw.toml"), "master-repo")
+        .expect("parse config");
+    assert_eq!(config.main_branch(), "master");
+}

@@ -30,6 +30,36 @@ pub fn format_port_env_key(key: &str) -> String {
     }
 }
 
+/// Filters configured ports to exclude client ports for shared Docker services.
+///
+/// Client ports targeting shared containers (such as Postgres or Redis) must remain
+/// at their standard port numbers rather than shifting per worktree slot.
+///
+/// # Examples
+///
+/// ```
+/// use git_claw::core::port::filter_shiftable_ports;
+/// use std::collections::BTreeMap;
+///
+/// let mut ports = BTreeMap::new();
+/// ports.insert("web".to_string(), 8000);
+/// ports.insert("DATABASE_PORT".to_string(), 5432);
+/// let shared = vec!["postgres".to_string()];
+/// let shiftable = filter_shiftable_ports(&ports, &shared);
+/// assert_eq!(shiftable.get("web"), Some(&8000));
+/// assert!(!shiftable.contains_key("DATABASE_PORT"));
+/// ```
+pub fn filter_shiftable_ports(
+    base_ports: &BTreeMap<String, u16>,
+    shared_services: &[String],
+) -> BTreeMap<String, u16> {
+    base_ports
+        .iter()
+        .filter(|(k, _)| !is_shared_service_port(k, shared_services))
+        .map(|(k, &v)| (k.clone(), v))
+        .collect()
+}
+
 /// Calculates effective ports: `Effective Port = Base Port + Slot ID`.
 /// Returns a map of environment key -> effective port, or PortError on overflow.
 pub fn calculate_effective_ports(

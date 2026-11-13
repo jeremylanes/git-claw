@@ -3,7 +3,7 @@ title: 'Automated Conventional Commit Tagging and Changelog Generation (git claw
 type: 'feature'
 ticket: 14
 created: '2026-10-17'
-status: 'ready-to-build'
+status: 'built'
 route: 'full'
 risk: 'low'
 review: 'quick'

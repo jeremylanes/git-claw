@@ -2,7 +2,7 @@
 //!
 //! Pushes worktree branches to remote Git repositories with upstream tracking.
 
-use crate::cli::output::print_success;
+use crate::cli::output::{print_success, PublishSummary};
 use crate::core::branch::BranchType;
 use crate::core::config::Config;
 use crate::infra::git::{
@@ -79,26 +79,35 @@ pub fn resolve_active_worktree_slot<'a>(
     })
 }
 
-/// Orchestrates publishing a worktree branch to a remote Git repository with upstream tracking.
+/// Orchestrates publishing a worktree branch and returns structured publish details.
 ///
-/// # Example
+/// When `quiet_stdout` is `true`, the informational banner is suppressed so stdout remains pure JSON.
+///
+/// # Examples
 ///
 /// ```no_run
 /// use std::path::Path;
 /// use git_claw::core::branch::BranchType;
-/// use git_claw::workflow::{publish_worktree, PublishOptions};
+/// use git_claw::workflow::publish::{publish_worktree_summary, PublishOptions};
 ///
 /// # fn run() -> Result<(), git_claw::workflow::WorkflowError> {
-/// publish_worktree(PublishOptions {
-///     branch_type: Some(BranchType::Feature),
-///     name: Some("login"),
-///     remote: Some("origin"),
-///     repo_root: Some(Path::new(".")),
-/// })?;
+/// let summary = publish_worktree_summary(
+///     PublishOptions {
+///         branch_type: Some(BranchType::Feature),
+///         name: Some("login"),
+///         remote: Some("origin"),
+///         repo_root: Some(Path::new(".")),
+///     },
+///     true,
+/// )?;
+/// assert_eq!(summary.remote, "origin");
 /// # Ok(())
 /// # }
 /// ```
-pub fn publish_worktree(options: PublishOptions<'_>) -> Result<(), WorkflowError> {
+pub fn publish_worktree_summary(
+    options: PublishOptions<'_>,
+    quiet_stdout: bool,
+) -> Result<PublishSummary, WorkflowError> {
     let toplevel = resolve_primary_repo_root(options.repo_root)?;
     let common_dir = resolve_git_common_dir(Some(&toplevel))?;
     let repo_name = resolve_repo_name(&toplevel);
@@ -159,10 +168,39 @@ pub fn publish_worktree(options: PublishOptions<'_>) -> Result<(), WorkflowError
 
     git_push_upstream(&toplevel, &remote, &slot.branch)?;
 
-    print_success(format!(
-        "Branch '{}' successfully published to '{}' with upstream tracking",
-        slot.branch, remote
-    ));
+    if !quiet_stdout {
+        print_success(format!(
+            "Branch '{}' successfully published to '{}' with upstream tracking",
+            slot.branch, remote
+        ));
+    }
 
-    Ok(())
+    Ok(PublishSummary {
+        name: slot.name.clone(),
+        branch: slot.branch.clone(),
+        remote,
+    })
+}
+
+/// Orchestrates publishing a worktree branch to a remote Git repository with upstream tracking.
+///
+/// # Example
+///
+/// ```no_run
+/// use std::path::Path;
+/// use git_claw::core::branch::BranchType;
+/// use git_claw::workflow::{publish_worktree, PublishOptions};
+///
+/// # fn run() -> Result<(), git_claw::workflow::WorkflowError> {
+/// publish_worktree(PublishOptions {
+///     branch_type: Some(BranchType::Feature),
+///     name: Some("login"),
+///     remote: Some("origin"),
+///     repo_root: Some(Path::new(".")),
+/// })?;
+/// # Ok(())
+/// # }
+/// ```
+pub fn publish_worktree(options: PublishOptions<'_>) -> Result<(), WorkflowError> {
+    publish_worktree_summary(options, false).map(|_| ())
 }

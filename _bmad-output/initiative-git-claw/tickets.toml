@@ -27,3 +27,10 @@ slug = "epic-dx-docker-and-init"
 title = "Developer Experience, Docker Interop & Project Initialization"
 covers = ["FR-10", "FR-11", "FR-12"]
 after = [{ epic = 3, needs = "Base CLI tooling and inspection workflows" }]
+
+[[epic]]
+id = 5
+slug = "epic-adoption-and-repo-polish"
+title = "Repository Polish, Agent JSON Output, Interactive Init & Binary Releases"
+covers = ["FR-6", "FR-10", "FR-15"]
+after = [{ epic = 4, needs = "Core Docker interop, init, shell-hook, and environment propagation" }]

@@ -1,17 +1,18 @@
 //! Start worktree lifecycle orchestration.
 
-use crate::cli::output::print_success;
+use crate::cli::output::{print_success, StartSummary};
 use crate::core::branch::BranchType;
 use crate::core::config::{Config, EnvironmentConfig};
-use crate::core::port::{calculate_effective_ports, is_shared_service_port};
+use crate::core::port::{calculate_effective_ports, filter_shiftable_ports};
 use crate::core::slot::allocate_lowest_slot;
 use crate::infra::docker::generate_docker_compose_override;
 use crate::infra::env_file::{
-    copy_and_merge_untracked_files, sanitize_compose_project_name, write_env_worktree,
+    copy_and_merge_untracked_files, format_slot_test_db_name, sanitize_compose_project_name,
+    write_env_worktree,
 };
 use crate::infra::fs::link_shared_cache_directories;
 use crate::infra::git::{resolve_git_common_dir, resolve_primary_repo_root, resolve_repo_name};
-use crate::infra::hook::run_post_start_hook;
+use crate::infra::hook::run_post_start_hook_with_output;
 use crate::infra::lock::SlotLock;
 use crate::infra::registry::{SlotRecord, SlotRegistry};
 use crate::infra::worktree::create_worktree;
@@ -28,8 +29,35 @@ pub struct StartOptions<'a> {
     pub repo_root: Option<&'a Path>,
 }
 
-/// Orchestrates starting a new worktree for `branch_type` and `name`.
-pub fn start_worktree(options: StartOptions<'_>) -> Result<u32, WorkflowError> {
+/// Orchestrates starting a new worktree for `branch_type` and `name`, returning structured details.
+///
+/// When `quiet_stdout` is `true`, informational banners are suppressed and hook/Herdr stdout
+/// is redirected to stderr so caller stdout stays clean for `--json`.
+///
+/// # Examples
+///
+/// ```no_run
+/// use git_claw::core::branch::BranchType;
+/// use git_claw::workflow::start::{start_worktree_summary, StartOptions};
+///
+/// # fn run() -> Result<(), git_claw::workflow::WorkflowError> {
+/// let summary = start_worktree_summary(
+///     StartOptions {
+///         branch_type: BranchType::Feature,
+///         name: "auth",
+///         isolated: false,
+///         repo_root: None,
+///     },
+///     true,
+/// )?;
+/// assert_eq!(summary.name, "auth");
+/// # Ok(())
+/// # }
+/// ```
+pub fn start_worktree_summary(
+    options: StartOptions<'_>,
+    quiet_stdout: bool,
+) -> Result<StartSummary, WorkflowError> {
     let toplevel = resolve_primary_repo_root(options.repo_root)?;
     let common_dir = resolve_git_common_dir(Some(&toplevel))?;
     let repo_name = resolve_repo_name(&toplevel);
@@ -65,13 +93,7 @@ pub fn start_worktree(options: StartOptions<'_>) -> Result<u32, WorkflowError> {
     let slot_id = allocate_lowest_slot(registry.occupied_ids());
 
     // Filter out ports associated with shared services so client connections to shared containers are never broken
-    let shiftable_ports: BTreeMap<String, u16> = config
-        .ports
-        .iter()
-        .filter(|(k, _)| !is_shared_service_port(k, &config.docker.shared_services))
-        .map(|(k, &v)| (k.clone(), v))
-        .collect();
-
+    let shiftable_ports = filter_shiftable_ports(&config.ports, &config.docker.shared_services);
     let effective_ports = calculate_effective_ports(&shiftable_ports, slot_id)?;
 
     // Create the Git worktree with the new branch
@@ -134,6 +156,8 @@ pub fn start_worktree(options: StartOptions<'_>) -> Result<u32, WorkflowError> {
         Some(&config.environment),
     )?;
 
+    let test_database = Some(format_slot_test_db_name(&repo_name, slot_id));
+
     // Record in registry and persist atomically
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -166,23 +190,38 @@ pub fn start_worktree(options: StartOptions<'_>) -> Result<u32, WorkflowError> {
     }
 
     // Run post_start hook if configured
-    let _ = run_post_start_hook(
+    let _ = run_post_start_hook_with_output(
         config.hooks.post_start.as_deref(),
         &worktree_path,
         &hook_env,
+        quiet_stdout,
     );
 
-    crate::infra::herdr::open_worktree_in_herdr(&toplevel, &branch_name);
+    crate::infra::herdr::open_worktree_in_herdr_quiet(&toplevel, &branch_name, quiet_stdout);
 
-    print_success(format!(
-        "Worktree '{}' started successfully (Slot: {}, Branch: {}, Path: {})",
-        options.name,
+    if !quiet_stdout {
+        print_success(format!(
+            "Worktree '{}' started successfully (Slot: {}, Branch: {}, Path: {})",
+            options.name,
+            slot_id,
+            branch_name,
+            worktree_path.display()
+        ));
+    }
+
+    Ok(StartSummary {
         slot_id,
-        branch_name,
-        worktree_path.display()
-    ));
+        name: options.name.to_string(),
+        branch: branch_name,
+        path: worktree_path.to_string_lossy().to_string(),
+        ports: effective_ports,
+        test_database,
+    })
+}
 
-    Ok(slot_id)
+/// Orchestrates starting a new worktree for `branch_type` and `name`.
+pub fn start_worktree(options: StartOptions<'_>) -> Result<u32, WorkflowError> {
+    start_worktree_summary(options, false).map(|s| s.slot_id)
 }
 
 /// Propagates environment configuration files from the primary repository to the worktree.

@@ -28,9 +28,9 @@
 ### Other Changes
 
 - purge cached build artifacts from index
-- clean chect sheet link
+- clean cheat sheet link
 - add visual HTML cheatsheet and GitHub Pages workflow
-- chetsheet and logo
+- cheat sheet and logo
 
 ## [v0.3.2] - 2026-10-17
 
@@ -52,7 +52,7 @@
 
 ### Features
 
-- comitizen mode
+- Commitizen mode
 - uv lock integration on git claw tag
 
 ### Other Changes
